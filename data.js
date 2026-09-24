@@ -193,6 +193,7 @@ async function loadCo2() {
     let [c] = await get('ods191', { order_by: 'datetime desc', limit: 1 }).catch(() => []);
     if (!c) [c] = await get('ods192', { order_by: 'datetime desc', limit: 1 });
     document.getElementById('liveCo2').textContent = Math.round(c.consumption) + ' g';
+    dispatchEvent(new CustomEvent('co2', { detail: c.consumption })); // la carte se teinte selon l'intensité carbone
     const day = new Date(c.datetime).toLocaleDateString('fr-BE', { timeZone: 'Europe/Brussels', day: 'numeric', month: 'long' });
     document.getElementById('liveCo2Txt').textContent = `de CO₂ par kWh consommé (dernière valeur publiée : ${day} à ${hhmm(c.datetime)})`;
   } catch (e) { /* la section « En ce moment » affiche déjà le message d'indisponibilité */ }
@@ -342,4 +343,63 @@ renderMix('mixEnergy', 'legendEnergy', [
     document.getElementById('sup' + r + 'n').textContent = `Tous les titulaires d'une licence (${all.length})`;
     document.getElementById('sup' + r + 'all').textContent = all.join(' · ');
   });
+}
+
+// --- Parties 4 à 6 : chiffres Eurostat 2024 (bilan énergétique nrg_bal_c, gaz nrg_ti_gas, émissions env_air_gge)
+function renderBars(id, rows, unit, digits = 0) { // rows: [nom, détail, valeur] ; barres relatives à la plus grande
+  const max = Math.max(...rows.map(r => r[2])), total = rows.reduce((s, r) => s + r[2], 0);
+  document.getElementById(id).innerHTML = rows.map(([name, what, v]) => `
+    <li style="--w:${100 * v / max}%">
+      <span class="bname">${name}</span><span class="n">${v.toLocaleString('fr-BE', { maximumFractionDigits: digits })} ${unit}</span>
+      <i></i><small>${Math.round(100 * v / total)} %${what ? ' · ' + what : ''}</small>
+    </li>`).join('');
+}
+renderBars('ghg', [ // Mt éq. CO2, 2024
+  ['Transports', 'voitures, camions, avions intérieurs', 24.9],
+  ['Procédés industriels', 'chimie, ciment, acier : réactions, pas combustion', 15.7],
+  ['Production d\'énergie', 'centrales électriques, raffineries', 14.8],
+  ['Combustion dans l\'industrie', 'fours et chaudières des usines', 13.0],
+  ['Chauffage des logements', 'gaz et mazout surtout', 12.6],
+  ['Agriculture', 'élevage, engrais', 8.3],
+  ['Chauffage des bureaux et commerces', '', 4.5],
+  ['Machines agricoles et serres', '', 2.7],
+  ['Déchets', 'décharges, eaux usées', 1.2],
+  ['Fuites', 'gaz et pétrole', 0.3],
+], 'Mt', 1);
+renderMix('mixPrimary', 'legendPrimary', [ // ktep, consommation intérieure brute 2024
+  { label: 'Pétrole', color: 'var(--oil)', value: 21036.4 },
+  { label: 'Gaz naturel', color: 'var(--gas)', value: 11922.3 },
+  { label: 'Nucléaire', color: 'var(--nuc)', value: 7514.5 },
+  { label: 'Renouvelables et biocarburants', color: 'var(--bio)', value: 5384.9 },
+  { label: 'Charbon', color: 'var(--ink)', value: 2629.4 },
+  { label: 'Électricité importée (solde)', color: 'var(--volt)', value: 889.2 },
+  { label: 'Déchets non renouvelables', color: 'var(--waste)', value: 606.6 },
+  { label: 'Chaleur', color: 'var(--hydro)', value: 65.9 },
+], pct);
+renderBars('gasOrigin', [ // millions de m³, 2024
+  ['Norvège', 'gazoducs sous la mer du Nord', 6294], ['Russie', 'gaz naturel liquéfié, par méthanier', 3445],
+  ['Qatar', 'gaz naturel liquéfié', 2762], ['France', '', 2115], ['Pays-Bas', '', 1695],
+  ['États-Unis', 'gaz naturel liquéfié', 1261], ['Royaume-Uni', '', 1204], ['Nigeria', '', 86], ['Danemark', '', 60], ['Allemagne', '', 30],
+], 'Mm³');
+renderBars('energySectors', [ // ktep, consommation finale d'énergie 2024
+  ['Industrie', 'chimie, métallurgie, alimentation…', 9846.7],
+  ['Transports', 'carburants surtout', 8920.9],
+  ['Ménages', 'chauffage, eau chaude, électricité', 7099.3],
+  ['Commerces et services', 'bureaux, magasins, hôpitaux, écoles', 3933.3],
+  ['Agriculture, forêt et pêche', '', 908.7],
+], 'ktep');
+
+// --- Texte surligné ligne par ligne : chaque paragraphe reçoit un <span class="hl"> (rétabli si le texte est remplacé)
+{
+  const SEL = '.panel > p, .panel > h2, .part > p, .part > h2, .live > p';
+  const wrap = el => {
+    if (el.firstElementChild?.classList?.contains('hl') || el.querySelector(':scope > .hl')) return;
+    const span = document.createElement('span');
+    span.className = 'hl';
+    [...el.childNodes].filter(n => !(n.nodeType === 1 && n.tagName.toLowerCase() === 'svg')).forEach(n => span.appendChild(n));
+    if (span.textContent.trim()) el.appendChild(span);
+  };
+  document.querySelectorAll(SEL).forEach(wrap);
+  new MutationObserver(ms => ms.forEach(m => m.target.matches?.(SEL) && wrap(m.target)))
+    .observe(document.querySelector('.story'), { childList: true, subtree: true });
 }

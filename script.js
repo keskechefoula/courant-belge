@@ -14,7 +14,7 @@
 
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 400);
+  const camera = new THREE.PerspectiveCamera(38, 1, 0.01, 400);
   const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 
   // lon/lat -> scene x/z (equirectangular, corrected at 50.5°N). North = -z.
@@ -37,7 +37,7 @@
     nuc: new THREE.MeshStandardMaterial({ roughness: 0.7, side: THREE.DoubleSide }),
     gas: new THREE.MeshStandardMaterial({ roughness: 0.7 }),
     wind: new THREE.MeshStandardMaterial({ color: 0xf4f6f8, roughness: 0.5 }),
-    solar: new THREE.MeshStandardMaterial({ color: 0x1d3557, roughness: 0.3, metalness: 0.4 }),
+    solar: new THREE.MeshStandardMaterial({ color: 0x5E9FD4, roughness: 0.25, metalness: 0.3 }),
     water: new THREE.MeshStandardMaterial({ roughness: 0.3 }),
     city: new THREE.MeshStandardMaterial({ roughness: 0.9, emissive: 0xffb347, emissiveIntensity: 0 }),
     steam: new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.35, depthWrite: false }),
@@ -52,27 +52,35 @@
   const shape = new THREE.Shape();
   outline.forEach(([lo, la], i) => { const [x, z] = P(lo, la); i ? shape.lineTo(x, -z) : shape.moveTo(x, -z); });
   const land = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: LAND, bevelEnabled: true, bevelSize: 0.08, bevelThickness: 0.06, bevelSegments: 2 }), M.land);
-  land.rotation.x = -Math.PI / 2;
+  land.rotation.x = -Math.PI / 2; land.userData.noEdges = true;
   scene.add(land);
+  // blueprint look: thin outline of Belgium + faint perspective grid under the map
+  const wireMat = new THREE.LineBasicMaterial({ transparent: true, opacity: 0.9 });
+  const landEdges = new THREE.LineSegments(new THREE.EdgesGeometry(land.geometry, 20), wireMat);
+  landEdges.rotation.x = -Math.PI / 2; scene.add(landEdges);
+  const grid = new THREE.GridHelper(120, 40);
+  grid.material.transparent = true; grid.material.opacity = 0.22; grid.position.y = -0.03;
+  scene.add(grid);
 
   const seaShape = new THREE.Shape();
   [[0.5,50.95],[2.54,51.09],[3.37,51.37],[3.6,51.45],[4.1,51.9],[4.4,52.6],[0.5,52.6]].forEach(([lo, la], i) => { const [x, z] = P(lo, la); i ? seaShape.lineTo(x, -z) : seaShape.moveTo(x, -z); });
   const sea = new THREE.Mesh(new THREE.ShapeGeometry(seaShape), M.sea);
-  sea.rotation.x = -Math.PI / 2; sea.position.y = 0.01;
+  sea.rotation.x = -Math.PI / 2; sea.position.y = 0.01; sea.userData.noEdges = true;
   scene.add(sea);
 
   // --- labels (canvas sprites, redrawn on theme change)
   const labels = [];
   function drawLabel(l) {
     const c = l.canvas, g = c.getContext('2d');
-    const font = l.big ? '800 48px "Barlow Condensed", sans-serif' : '600 44px "Barlow Condensed", sans-serif';
+    const font = l.big ? '400 40px "IBM Plex Mono", monospace' : '500 34px "IBM Plex Mono", monospace';
+    const text = l.big ? l.text.toUpperCase().split('').join('\u2009') : l.text; // letter-spaced country names
     g.font = font;
-    const w = Math.ceil(g.measureText(l.text).width) + 40;
+    const w = Math.ceil(g.measureText(text).width) + 28;
     c.width = w; c.height = 64;
     g.font = font; g.textBaseline = 'middle'; g.textAlign = 'center';
-    if (!l.big) { g.lineWidth = 8; g.strokeStyle = css('--ground'); g.strokeText(l.text, w / 2, 34); }
+    if (!l.big) { g.fillStyle = css('--sheet'); g.fillRect(0, 8, w, 50); } // highlight box, like the page text
     g.fillStyle = l.big ? css('--muted') : css('--ink');
-    g.fillText(l.text, w / 2, 34);
+    g.fillText(text, w / 2, 34);
     l.sprite.material.map.needsUpdate = true;
     const h = l.big ? 0.9 : 0.55;
     l.sprite.scale.set(h * w / 64, h, 1);
@@ -146,11 +154,15 @@
     'Brabant wallon': [4.6, 50.67, 0.12, 358, 'WAL'], 'Hainaut': [4.0, 50.45, 0.28, 1058, 'WAL'],
     'Namur': [4.85, 50.28, 0.25, 445, 'WAL'], 'Liège': [5.72, 50.5, 0.24, 854, 'WAL'], 'Luxembourg': [5.5, 49.95, 0.25, 368, 'WAL'],
   };
+  // micro scenes (see below) keep a clear area around them: [lon, lat, radius in deg]
+  const CLEAR = [[3.95, 51.12, 0.07], [5.25, 51.02, 0.08], [4.82, 50.44, 0.07], [4.52, 50.93, 0.07], [3.8, 51.09, 0.06],
+    [4.34, 51.27, 0.07], [3.25, 51.27, 0.06], ...[0, 1, 2, 3, 4].map(i => [4.6 + i * 0.0875, 50.8 - i * 0.035, 0.05])];
+  const clear = (lon, lat) => CLEAR.every(([a, b, r]) => Math.hypot((lon - a) * CX, lat - b) > r);
   function spot(lon, lat, spread) { // random point near a centre, inside Belgium
     for (let k = 0; k < 50; k++) {
       const a = r3() * 6.283, d = Math.sqrt(r3()) * spread;
       const lo = lon + Math.cos(a) * d / CX, la = lat + Math.sin(a) * d;
-      if (inBelgium(lo, la)) return [lo, la];
+      if (inBelgium(lo, la) && clear(lo, la)) return [lo, la];
     }
     return [lon, lat];
   }
@@ -200,7 +212,7 @@
   const white = new THREE.Color(0xffffff);
   turbines.forEach(([x, y, z, , own], i) => {
     dummy.position.set(x, y, z); dummy.rotation.set(0, 0, 0); dummy.updateMatrix(); masts.setMatrixAt(i, dummy.matrix);
-    const c = own ? new THREE.Color(css('--own-' + own)) : white;
+    const c = own ? new THREE.Color(css('--own-' + own)) : new THREE.Color(css('--muted'));
     masts.setColorAt(i, c); rotorsIM.setColorAt(i, c);
   });
   grp('wind').add(masts, rotorsIM);
@@ -337,8 +349,13 @@
     scene.add(mesh);
     lines.push({ curve, len, kind, mesh, rev: kind === 'inter' && lines.length % 2 === 0 });
   }
-  backbone.forEach(([a, b]) => wire(a, b, 'grid', M.volt, 0.5, 0.045));
-  inter.forEach(([a, b]) => wire(a, b, 'inter', M.volt, 0.5, 0.06));
+  // voltage of each link (for colour): main axes and borders 380 kV, plant spurs 150 kV, offshore export 220 kV
+  const SPUR = ['drogenbos', 'ringvaart', 'seraing', 'amercoeur', 'coo'];
+  backbone.forEach(([a, b]) => {
+    wire(a, b, 'grid', M.volt, 0.5, 0.03);
+    lines[lines.length - 1].kv = b === 'island' ? '--kv220' : SPUR.includes(a) || SPUR.includes(b) ? '--kv150' : '--kv380';
+  });
+  inter.forEach(([a, b]) => { wire(a, b, 'inter', M.volt, 0.5, 0.035); lines[lines.length - 1].kv = '--kv380'; });
   // substations
   Object.keys(N).filter(inBE).forEach(k => {
     const s = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.12, 0.18), M.gas);
@@ -348,7 +365,7 @@
   const distLinks = [['bruegel',4.35,50.85],['mercator',4.40,51.22],['horta',3.72,51.05],['lixhe',5.57,50.63],['courcelles',4.44,50.41],['achene',4.87,50.47],['stevin',3.22,51.21],['drogenbos',4.33,50.83]];
   distLinks.forEach(([k, lo, la], i) => {
     N['c' + i] = [lo, la];
-    wire(k, 'c' + i, 'dist', M.dist, 0.1, 0.03);
+    wire(k, 'c' + i, 'dist', M.dist, 0.1, 0.02); lines[lines.length - 1].kv = '--kv15';
   });
 
   // --- current particles
@@ -369,19 +386,246 @@
   const points = new THREE.Points(pGeo, new THREE.PointsMaterial({ size: 0.42, map: dotTex, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
   scene.add(points);
 
+
+  // ===================== Micro scenes: detailed minimalist models reached by zooming in =====================
+  // Each sits at its real place on the map; the scroll camera (SHOTS below) dives into it. Animations: anim[] each frame.
+  const anim = [];
+  M.part = new THREE.MeshStandardMaterial();                  // white drafting fill
+  M.accent = new THREE.MeshStandardMaterial();                // yellow details
+  M.heat = new THREE.MeshStandardMaterial();                  // heat pipes
+  const mk = (geo, mat = M.part) => new THREE.Mesh(geo, mat);
+  const B = (w, h, d, mat) => mk(new THREE.BoxGeometry(w, h, d), mat);
+  const C = (rt, rb, h, seg = 16, mat) => mk(new THREE.CylinderGeometry(rt, rb, h, seg), mat);
+  const put = (o, x, y, z) => { o.position.set(x, y, z); return o; };
+  const site = (lon, lat, y = LAND + 0.06) => { const g = new THREE.Group(), [x, z] = P(lon, lat); g.position.set(x, y, z); scene.add(g); return g; };
+  const lineMat = new THREE.LineBasicMaterial();
+  // particles running along curves (air, current, water, heat); curves are in the parent's local space
+  function flow(parent, curves, n, speed, color, size = 0.012) {
+    const pos = new Float32Array(n * 3), g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const pts = new THREE.Points(g, new THREE.PointsMaterial({ size, color, transparent: true, depthWrite: false }));
+    parent.add(pts);
+    const seeds = Array.from({ length: n }, (_, i) => [i % curves.length, (i * 0.618) % 1]);
+    anim.push(t => {
+      const sp = typeof speed === 'function' ? speed() : speed;
+      seeds.forEach(([c, o], i) => { const p = curves[c].getPoint(((o + t * sp) % 1 + 1) % 1); pos[i * 3] = p.x; pos[i * 3 + 1] = p.y; pos[i * 3 + 2] = p.z; });
+      g.attributes.position.needsUpdate = true;
+    });
+  }
+  const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
+  const seg3 = (a, b) => new THREE.LineCurve3(a, b);
+  const YELLOW = 0xF2B705, AIR = 0x8A8F96, WATER = 0x3B6FB4, HEAT = 0xD2372E;
+
+  // detailed turbine (same size as the generic ones): tower, nacelle, hub, tapered blades
+  function heroTurbine(parent, y0 = 0) {
+    const g = new THREE.Group(); g.position.y = y0; parent.add(g);
+    g.add(put(C(0.006, 0.012, 0.34, 12), 0, 0.17, 0));
+    g.add(put(B(0.022, 0.02, 0.05), 0, 0.35, -0.008));
+    const rotor = new THREE.Group(); rotor.position.set(0, 0.35, 0.02); g.add(rotor);
+    const hub = mk(new THREE.ConeGeometry(0.009, 0.02, 12)); hub.rotation.x = Math.PI / 2; rotor.add(hub);
+    const blade = new THREE.Shape(); blade.moveTo(-0.006, 0); blade.lineTo(0.008, 0.012); blade.lineTo(0.003, 0.19); blade.lineTo(-0.002, 0.19); blade.closePath();
+    const bladeGeo = new THREE.ExtrudeGeometry(blade, { depth: 0.002, bevelEnabled: false });
+    for (let i = 0; i < 3; i++) { const b = mk(bladeGeo); b.rotation.z = i * Math.PI * 2 / 3; rotor.add(b); }
+    anim.push((t, dt) => { rotor.rotation.z -= dt * (0.6 + Math.min(windKt || 8, 30) * 0.12) * (reduced ? 0 : 1); g.rotation.y = Math.PI - windFrom * Math.PI / 180; });
+    // air flowing through the rotor, along the wind
+    const air = [0.28, 0.35, 0.42].flatMap(h => [-0.06, 0.06].map(x => seg3(V3(x, h, 0.5), V3(x, h, -0.5))));
+    flow(g, air, 36, () => 0.05 + (windKt || 8) * 0.012, AIR, 0.008);
+    return g;
+  }
+
+  // 1. onshore wind, Flanders
+  heroTurbine(site(3.95, 51.12, LAND));
+  // 2. offshore: monopile, yellow transition piece, turbine, offshore substation, waves
+  {
+    const g = site(3.12, 51.48, 0);
+    g.add(put(C(0.01, 0.01, 0.08, 12), 0, -0.02, 0));
+    g.add(put(C(0.013, 0.013, 0.03, 12, M.accent), 0, 0.03, 0));
+    heroTurbine(g, 0.045);
+    const sub = new THREE.Group(); sub.position.set(0.3, 0, 0.1); g.add(sub);
+    [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([a, b]) => sub.add(put(C(0.004, 0.004, 0.08, 6), a * 0.04, 0.02, b * 0.03)));
+    sub.add(put(B(0.11, 0.05, 0.08), 0, 0.085, 0));
+    sub.add(put(B(0.03, 0.02, 0.03, M.accent), 0.02, 0.12, 0));
+    for (let k = 0; k < 5; k++) { // waves
+      const pts = Array.from({ length: 60 }, (_, i) => V3(-0.6 + i * 0.02, 0, -0.3 + k * 0.15));
+      const geo = new THREE.BufferGeometry().setFromPoints(pts), wave = new THREE.Line(geo, lineMat); g.add(wave);
+      anim.push(t => { const a = geo.attributes.position; for (let i = 0; i < a.count; i++) a.setY(i, 0.006 * Math.sin(i * 0.5 + t * 1.5 + k)); a.needsUpdate = true; });
+    }
+    flow(g, [new THREE.CatmullRomCurve3([V3(0.3, 0.06, 0.1), V3(0.3, -0.03, 0.2), V3(0.3, -0.03, 1.2)])], 12, 0.15, YELLOW, 0.01);
+  }
+  // 3. solar: house with rooftop panels + a ground-mounted field that tracks the sun, sun rays
+  {
+    const g = site(5.25, 51.02);
+    g.add(put(B(0.1, 0.06, 0.07), 0, 0.03, 0));
+    const roofS = put(B(0.104, 0.004, 0.05), 0, 0.078, 0.018); roofS.rotation.x = 0.7; g.add(roofS);
+    const roofN = put(B(0.104, 0.004, 0.05), 0, 0.078, -0.018); roofN.rotation.x = -0.7; g.add(roofN);
+    for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) {
+      const pnl = put(B(0.026, 0.002, 0.018, M.solar), -0.03 + i * 0.03, 0.004, -0.01 + j * 0.021); roofS.add(pnl);
+    }
+    const field = new THREE.Group(); field.position.set(0.22, 0, 0.05); g.add(field);
+    for (let r = 0; r < 3; r++) {
+      const row = new THREE.Group(); row.position.set(0, 0.018, r * 0.06); field.add(row);
+      for (let i = 0; i < 5; i++) { row.add(put(B(0.028, 0.002, 0.03, M.solar), -0.06 + i * 0.03, 0, 0)); field.add(put(C(0.002, 0.002, 0.018, 6), -0.06 + i * 0.03, 0.009, r * 0.06)); }
+      anim.push(t => { const a = (hour - 12) / 12 * Math.PI; row.rotation.x = -0.45; row.rotation.z = reduced ? 0 : Math.max(-0.8, Math.min(0.8, a)) * 0.6; });
+    }
+    const rays = Array.from({ length: 8 }, (_, i) => seg3(V3(0.5 + i * 0.02, 0.6, -0.4), V3(-0.05 + (i % 4) * 0.09, 0.03, (i < 4 ? 0.02 : 0.12))));
+    flow(g, rays, 40, 0.25, YELLOW, 0.009);
+  }
+  // 4. high-voltage line: lattice pylons, sagging conductors, current pulses
+  {
+    const A = P(4.6, 50.8), Bp = P(4.95, 50.66), n = 5, H = 0.25;
+    const verts = [], cables = [[], []];
+    for (let k = 0; k < n; k++) {
+      const x = A[0] + (Bp[0] - A[0]) * k / (n - 1), z = A[1] + (Bp[1] - A[1]) * k / (n - 1), y = LAND + 0.06;
+      const w = (h) => 0.022 * (1 - h / H) + 0.006; // half-width tapering with height
+      const L = h => [[-w(h), -w(h)], [w(h), -w(h)], [w(h), w(h)], [-w(h), w(h)]];
+      for (let lv = 0; lv < 5; lv++) {
+        const h0 = lv * H / 5, h1 = (lv + 1) * H / 5, a = L(h0), b = L(h1);
+        for (let c = 0; c < 4; c++) {
+          verts.push(x + a[c][0], y + h0, z + a[c][1], x + b[c][0], y + h1, z + b[c][1]);                 // legs
+          const d = (c + 1) % 4;
+          verts.push(x + a[c][0], y + h0, z + a[c][1], x + b[d][0], y + h1, z + b[d][1]);                 // bracing
+          verts.push(x + b[c][0], y + h1, z + b[c][1], x + b[d][0], y + h1, z + b[d][1]);                 // ring
+        }
+      }
+      [[0.8, 0.07], [0.95, 0.05]].forEach(([f, arm], i) => {                                               // crossarms
+        verts.push(x - arm, y + H * f, z, x + arm, y + H * f, z);
+        cables[i].push(V3(x - arm, y + H * f - 0.01, z), V3(x + arm, y + H * f - 0.01, z));
+      });
+    }
+    const pylons = new THREE.LineSegments(new THREE.BufferGeometry(), lineMat);
+    pylons.geometry.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3)); scene.add(pylons);
+    const curves = [];
+    cables.forEach(tips => [0, 1].forEach(side => {                                                        // one conductor per arm tip
+      const pts = [];
+      for (let k = 0; k < n - 1; k++) {
+        const p0 = tips[k * 2 + side], p1 = tips[(k + 1) * 2 + side];
+        for (let s2 = 0; s2 < 8; s2++) { const u = s2 / 8; pts.push(p0.clone().lerp(p1, u).add(V3(0, -0.035 * Math.sin(Math.PI * u), 0))); }
+      }
+      pts.push(tips[(n - 1) * 2 + side]);
+      const c = new THREE.CatmullRomCurve3(pts); curves.push(c);
+      scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(c.getPoints(120)), lineMat));
+    }));
+    flow(scene, curves, 48, 0.05, YELLOW, 0.012);
+  }
+  // 5. local distribution: substation cabin (transformer symbol) feeding a street through underground cables
+  {
+    const g = site(4.82, 50.44);
+    g.add(put(B(0.05, 0.04, 0.035), 0, 0.02, 0));
+    [-0.006, 0.006].forEach(dx => { const r = mk(new THREE.TorusGeometry(0.008, 0.0015, 8, 24), M.accent); r.position.set(dx, 0.022, 0.018); g.add(r); });
+    const lines = [];
+    for (let i = 0; i < 6; i++) {
+      const hx = -0.15 + i * 0.06, hz = 0.12;
+      g.add(put(B(0.035, 0.03, 0.03), hx, 0.015, hz));
+      const rf = put(B(0.037, 0.003, 0.022), hx, 0.036, hz + 0.008); rf.rotation.x = 0.6; g.add(rf);
+      const rb = put(B(0.037, 0.003, 0.022), hx, 0.036, hz - 0.008); rb.rotation.x = -0.6; g.add(rb);
+      lines.push(new THREE.CatmullRomCurve3([V3(0, 0.005, 0.02), V3(0, -0.01, 0.07), V3(hx, -0.01, 0.07), V3(hx, 0.005, hz - 0.015)]));
+      g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(lines[i].getPoints(20)), lineMat));
+    }
+    flow(g, lines, 36, 0.3, YELLOW, 0.008);
+  }
+  // 6. house cutaway: meter counting kWh, fridge, washing machine with spinning drum, TV
+  {
+    const g = site(4.52, 50.93);
+    g.add(put(B(0.2, 0.004, 0.14), 0, 0, 0));
+    g.add(put(B(0.2, 0.1, 0.004), 0, 0.05, -0.07));
+    g.add(put(B(0.004, 0.1, 0.14), -0.1, 0.05, 0));
+    g.add(put(B(0.025, 0.05, 0.022), -0.07, 0.027, -0.05));                 // fridge
+    g.add(put(B(0.026, 0.028, 0.026), -0.035, 0.016, -0.05));              // washing machine
+    const drum = mk(new THREE.TorusGeometry(0.008, 0.0015, 8, 20), M.accent); drum.position.set(-0.035, 0.017, -0.036); g.add(drum);
+    anim.push((t, dt) => { drum.rotation.z += dt * 6 * (reduced ? 0 : 1); });
+    g.add(put(B(0.045, 0.028, 0.003), 0.04, 0.045, -0.067));                // TV
+    g.add(put(B(0.02, 0.03, 0.006), 0.085, 0.06, -0.066));                  // meter box
+    const cv = document.createElement('canvas'); cv.width = 256; cv.height = 64;
+    const disp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), depthWrite: false }));
+    disp.position.set(0.085, 0.1, -0.06); disp.scale.set(0.06, 0.015, 1); g.add(disp);
+    let kwh = 3412.6, last = -1;
+    anim.push(t => {
+      if (Math.floor(t * 2) === last) return; last = Math.floor(t * 2); kwh += 0.1;
+      const c = cv.getContext('2d'); c.fillStyle = css('--sheet'); c.fillRect(0, 0, 256, 64); c.strokeStyle = css('--ink'); c.lineWidth = 3; c.strokeRect(2, 2, 252, 60);
+      c.fillStyle = css('--ink'); c.font = '500 34px "IBM Plex Mono", monospace'; c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.fillText(kwh.toFixed(1).padStart(7, '0') + ' kWh', 128, 34); disp.material.map.needsUpdate = true;
+    });
+    const wires = [[-0.07, 0.05], [-0.035, 0.03], [0.04, 0.045]].map(([x, h]) => new THREE.CatmullRomCurve3([V3(0.085, 0.05, -0.064), V3(0.085, 0.004, -0.064), V3(x, 0.004, -0.064), V3(x, h, -0.064)], false, 'catmullrom', 0));
+    wires.push(new THREE.CatmullRomCurve3([V3(0.3, 0.004, -0.064), V3(0.085, 0.004, -0.064), V3(0.085, 0.05, -0.064)], false, 'catmullrom', 0));
+    flow(g, wires, 30, 0.35, YELLOW, 0.006);
+  }
+  // 7. Port of Antwerp: tank farm, distillation columns, flare with flame
+  {
+    const g = site(4.34, 51.27);
+    for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) g.add(put(C(0.03, 0.03, 0.035, 20), -0.1 + i * 0.075, 0.0175, 0.06 + j * 0.075));
+    [0, 0.03, 0.06].forEach((dx, i) => g.add(put(C(0.007, 0.007, 0.12 + i * 0.02, 12), 0.15 + dx, 0.06 + i * 0.01, -0.02)));
+    g.add(put(B(0.08, 0.03, 0.05), 0.18, 0.015, 0.06));
+    g.add(put(C(0.003, 0.004, 0.2, 8), -0.08, 0.1, -0.08));
+    const flame = mk(new THREE.ConeGeometry(0.008, 0.03, 8), M.accent); flame.position.set(-0.08, 0.215, -0.08); flame.userData.noEdges = true; g.add(flame);
+    anim.push(t => { flame.scale.set(1, 0.8 + 0.3 * Math.abs(Math.sin(t * 7) * Math.sin(t * 3.1)), 1); });
+  }
+  // 8. Zeebrugge LNG terminal: tanks on land, an LNG carrier gently rolling, gas flowing to the tanks
+  {
+    const g = site(3.25, 51.27);
+    for (let i = 0; i < 4; i++) { g.add(put(C(0.035, 0.035, 0.04, 24), -0.12 + i * 0.08, 0.02, 0)); g.add(put(mk(new THREE.SphereGeometry(0.035, 24, 8, 0, Math.PI * 2, 0, Math.PI / 2)), -0.12 + i * 0.08, 0.04, 0)); }
+    const [sx, sz] = P(3.19, 51.34);
+    const ship = new THREE.Group(); ship.position.set(sx - g.position.x, -g.position.y, sz - g.position.z); g.add(ship);
+    ship.add(put(B(0.3, 0.03, 0.055), 0, 0.012, 0));
+    for (let i = 0; i < 4; i++) ship.add(put(mk(new THREE.SphereGeometry(0.02, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2)), -0.09 + i * 0.055, 0.027, 0));
+    ship.add(put(B(0.03, 0.03, 0.04), 0.13, 0.04, 0));
+    anim.push(t => { ship.rotation.x = reduced ? 0 : Math.sin(t * 0.8) * 0.04; ship.position.y = -g.position.y + Math.sin(t * 0.6) * 0.003; });
+    flow(g, [new THREE.CatmullRomCurve3([ship.position.clone().add(V3(0, 0.03, 0)), V3(ship.position.x * 0.5, 0.02, ship.position.z * 0.5), V3(0, 0.03, 0.03)])], 20, 0.2, WATER, 0.01);
+  }
+  // 9. heat network: incinerator feeding buildings through red pipes, warm water circulating
+  {
+    const g = site(3.8, 51.09);
+    g.add(put(B(0.08, 0.05, 0.05), 0, 0.025, 0));
+    g.add(put(C(0.007, 0.01, 0.13, 10), 0.03, 0.065, -0.015));
+    const pipes = [];
+    [[-0.18, 0.1], [-0.08, 0.16], [0.06, 0.15], [0.16, 0.08]].forEach(([bx, bz]) => {
+      g.add(put(B(0.05, 0.06 + Math.abs(bx) * 0.2, 0.04), bx, 0.03 + Math.abs(bx) * 0.1, bz));
+      const c = new THREE.CatmullRomCurve3([V3(0, 0.006, 0.026), V3(0, 0.006, 0.06), V3(bx, 0.006, 0.06), V3(bx, 0.006, bz - 0.02)], false, 'catmullrom', 0);
+      pipes.push(c); const tube = mk(new THREE.TubeGeometry(c, 30, 0.003, 6), M.heat); g.add(tube);
+    });
+    flow(g, pipes, 32, 0.3, HEAT, 0.008);
+  }
+  // 10. Coo: water goes up to the basins at night (pumping), down through the turbines by day
+  {
+    const [x, z] = P(5.87, 50.39), top = V3(x, LAND + 0.61, z), low = V3(x - 0.4, LAND + 0.03, z + 1.1);
+    const pen = new THREE.CatmullRomCurve3([top, top.clone().lerp(low, 0.5).add(V3(0.1, 0.05, 0)), low]);
+    scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pen.getPoints(40)), lineMat));
+    flow(scene, [pen], 30, () => (hour >= 7 && hour < 22 ? 0.2 : -0.2), WATER, 0.03);
+  }
+
+  // --- drafting outlines: every solid gets its edges drawn in ink (like a CAD hidden-line view)
+  const edgeMat = new THREE.LineBasicMaterial();
+  scene.traverse(o => {
+    if (!o.isMesh || o.isInstancedMesh || o.material.transparent) return;
+    const t = o.geometry.type;
+    if (o.userData.noEdges || t === 'TubeGeometry' || t === 'RingGeometry') return;
+    o.add(new THREE.LineSegments(new THREE.EdgesGeometry(o.geometry, 25), edgeMat));
+  });
+  // Electricity Maps-like carbon colour: green (low) → yellow → brown (high), 0–400 g/kWh
+  let co2 = null;
+  const co2Color = g => {
+    const t = Math.max(0, Math.min(1, g / 400)), c = n => new THREE.Color(css(n));
+    return t < 0.5 ? c('--co2-low').lerp(c('--co2-mid'), t * 2) : c('--co2-mid').lerp(c('--co2-high'), (t - 0.5) * 2);
+  };
+  addEventListener('co2', e => { co2 = e.detail; applyTheme(); });
+
   // --- theme
   function applyTheme() {
     const col = n => new THREE.Color(css(n));
-    M.land.color = col('--land'); M.sea.color = col('--sea'); M.water.color = col('--wind');
-    M.volt.color = col('--volt'); M.dist.color = col('--dist');
-    M.nuc.color = col('--panel').lerp(col('--nuc'), 0.15); M.gas.color = col('--gas');
-    M.city.color = col('--land').lerp(col('--ink'), 0.25);
-    // black cables, yellow current pulses
-    lines.forEach(l => l.mesh.material.color = l.kind === 'dist' ? M.dist.color : col('--ink'));
+    // drafting look: flat fills (colour through emissive, no shading) outlined in ink
+    const flat = (m, c) => { m.color.setRGB(0, 0, 0); m.emissive = c; m.emissiveIntensity = 1; m.metalness = 0; };
+    flat(M.land, co2 == null ? col('--land') : col('--land').lerp(co2Color(co2), 0.25));
+    flat(M.sea, col('--sea')); flat(M.nuc, col('--land')); flat(M.gas, col('--land')); flat(M.city, col('--land'));
+    flat(M.water, col('--sea')); flat(M.solar, col('--ink'));
+    flat(M.part, col('--land')); flat(M.accent, col('--volt')); flat(M.heat, col('--kv220')); lineMat.color = col('--ink');
+    wireMat.color = col('--wire'); edgeMat.color = col('--ink');
+    grid.material.color = col('--wire'); grid.material.vertexColors = false; grid.material.opacity = 0.12; grid.material.needsUpdate = true;
+    M.volt.color = col('--volt'); M.dist.color = col('--kv15');
+    // power lines coloured by voltage, like grid maps
+    lines.forEach(l => l.mesh.material.color = col(l.kv || '--kv380'));
     rings.forEach(r => r.material.color = col('--ink'));
-    OWNERS.forEach(o => OWN[o].color = col('--own-' + o));
+    OWNERS.forEach(o => flat(OWN[o], col('--own-' + o)));
     setBarbPattern(); skyKey = ''; // re-tint pattern + sky for the new theme
-    const dark = new THREE.Color(css('--ground')).getHSL({}).l < 0.4;
+    const dark = new THREE.Color(css('--paper')).getHSL({}).l < 0.4;
     points.material.blending = dark ? THREE.AdditiveBlending : THREE.NormalBlending;
     parts.forEach((p, i) => M.volt.color.toArray(pCol, i * 3));
     pGeo.attributes.color.needsUpdate = true;
@@ -392,20 +636,27 @@
   applyTheme();
   document.fonts && document.fonts.ready.then(() => labels.forEach(drawLabel));
 
-  // --- camera presets [position, target]
+  // --- camera shots: what each chapter looks at, from macro (all Belgium) to micro (one installation)
   const v = (lon, lat, y = 0) => { const [x, z] = P(lon, lat); return new THREE.Vector3(x, y, z); };
-  const CAMS = {
-    hero:     [new THREE.Vector3(-14, 20, 24), v(4.4, 50.6)],
-    overview: [new THREE.Vector3(0, 30, 20), v(4.3, 50.7)],
-    nuclear:  [new THREE.Vector3(8, 13, 9), v(4.75, 50.95)],
-    offshore: [new THREE.Vector3(-4, 7, -3), v(2.85, 51.55)],
-    grid:     [new THREE.Vector3(4, 26, 16), v(4.5, 50.75)],
-    wide:     [new THREE.Vector3(0, 40, 26), v(4.2, 50.8)],
-    coo:      [new THREE.Vector3(14, 6, 7), v(5.8, 50.42)],
-    city:     [new THREE.Vector3(3, 7, 3), v(4.3, 50.9)],
-    home:     [new THREE.Vector3(-3, 12, 10), v(4.3, 50.85)],
+  const shot = (lon, lat, y, dist, el, az) => ({ look: v(lon, lat, y), dist, el: el * Math.PI / 180, az: az * Math.PI / 180 });
+  const SHOTS = { // lon, lat, target height, distance, elevation °, azimuth ° (0 = seen from the south)
+    hero: shot(4.4, 50.6, 0, 36, 40, -30),       overview: shot(4.3, 50.7, 0, 34, 55, 0),
+    wide: shot(4.2, 50.8, 0, 46, 55, 0),         plan: shot(4.45, 50.6, 0, 34, 86, 0),
+    grid: shot(4.5, 50.75, 0, 30, 60, 10),       city: shot(4.35, 50.86, LAND, 5, 40, -15),
+    nuclear: shot(4.26, 51.32, LAND + 0.4, 3.5, 25, -25), coo: shot(5.87, 50.39, LAND + 0.3, 3.8, 28, 35),
+    wind: shot(3.95, 51.12, LAND + 0.26, 1.35, 14, 30),     offshore: shot(3.14, 51.48, 0.12, 1.3, 16, 20),
+    solar: shot(5.3, 51.02, LAND + 0.06, 0.85, 30, 20),   pylons: shot(4.775, 50.73, LAND + 0.18, 2.2, 14, 30),
+    dist: shot(4.82, 50.44, LAND + 0.08, 0.6, 32, 15),    house: shot(4.52, 50.93, LAND + 0.1, 0.45, 25, 25),
+    port: shot(4.34, 51.27, LAND + 0.1, 0.8, 30, -20),    lng: shot(3.22, 51.305, 0.25, 2.6, 30, -20),
+    heat: shot(3.8, 51.09, LAND + 0.08, 0.7, 35, 15),
   };
-  const camPos = CAMS.hero[0].clone(), camLook = CAMS.hero[1].clone();
+  const shotPos = (sh, out = new THREE.Vector3()) => out.set(
+    sh.look.x + sh.dist * Math.cos(sh.el) * Math.sin(sh.az), sh.look.y + sh.dist * Math.sin(sh.el), sh.look.z + sh.dist * Math.cos(sh.el) * Math.cos(sh.az));
+  const mixShot = (a, b, t) => ({
+    look: a.look.clone().lerp(b.look, t), dist: Math.exp(Math.log(a.dist) + (Math.log(b.dist) - Math.log(a.dist)) * t),
+    el: a.el + (b.el - a.el) * t, az: a.az + (b.az - a.az) * t,
+  });
+  const camPos = shotPos(SHOTS.hero), camLook = SHOTS.hero.look.clone();
   let active = null, focus = new Set();
 
   const sections = [...document.querySelectorAll('.chapter')];
@@ -416,11 +667,30 @@
     if (best !== active) {
       active = best;
       focus = new Set(best.dataset.focus.split(' ').filter(Boolean));
-      if (reduced) { camPos.copy(CAMS[best.dataset.cam][0]); camLook.copy(CAMS[best.dataset.cam][1]); }
     }
   }
   addEventListener('scroll', pickChapter, { passive: true });
   pickChapter();
+
+  // the camera is scrubbed by the scroll: it holds each chapter's shot while it is read,
+  // and between two far-apart shots it pulls back (macro) before diving in again (micro)
+  const shotOf = el => SHOTS[el.dataset.cam] || SHOTS.overview;
+  function scrollShot() {
+    const mid = innerHeight / 2;
+    let prev = null, next = null;
+    for (const s of sections) {
+      const r = s.getBoundingClientRect(); if (!r.height) continue;
+      const c = (r.top + r.bottom) / 2;
+      if (c <= mid) prev = [s, c]; else { next = [s, c]; break; }
+    }
+    if (!prev) return mixShot(shotOf(next[0]), shotOf(next[0]), 0);
+    if (!next) return mixShot(shotOf(prev[0]), shotOf(prev[0]), 0);
+    let t = (mid - prev[1]) / (next[1] - prev[1]);
+    t = Math.min(1, Math.max(0, (t - 0.3) / 0.4)); t = t * t * (3 - 2 * t);
+    const a = shotOf(prev[0]), b = shotOf(next[0]), m = mixShot(a, b, t);
+    m.dist += Math.sin(Math.PI * t) * a.look.distanceTo(b.look) * 0.6;
+    return m;
+  }
 
   let mx = 0, my = 0;
   addEventListener('pointermove', e => { mx = e.clientX / innerWidth - 0.5; my = e.clientY / innerHeight - 0.5; });
@@ -428,6 +698,7 @@
   // --- weather (data.js fires 'weather'): clouds over the map, wind barbs as a background pattern
   const cloudGroup = new THREE.Group();
   scene.add(cloudGroup);
+  cloudGroup.visible = false; // clouds don't belong on a technical drawing; cloud cover stays in the text
   const cloudMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 0.45, roughness: 1, transparent: true, opacity: 0.7, depthWrite: false });
   const puffGeo = new THREE.SphereGeometry(1, 12, 8);
 
@@ -445,7 +716,7 @@
       body = `<g stroke="${color}" stroke-width="2" stroke-linecap="round"><path d="M0 0V-34"/>${parts}</g>`;
     }
     const one = (x, y) => `<g transform="translate(${x} ${y}) rotate(${fromDeg.toFixed(0)})">${body}<circle r="2.5" fill="${color}"/></g>`;
-    return `<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" opacity="0.28">${one(40, 40)}${one(120, 120)}</svg>`;
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" opacity="0.18">${one(40, 40)}${one(120, 120)}</svg>`;
   }
   function setBarbPattern() {
     if (!wx) return;
@@ -455,7 +726,7 @@
     const from = (Math.atan2(vx, vy) * 180 / Math.PI + 360) % 360;
     windFrom = from; windKt = sp / wx.winds.length;
     document.documentElement.style.setProperty('--barbs',
-      `url("data:image/svg+xml,${encodeURIComponent(barbSvg(from, sp / wx.winds.length, css('--ink')))}")`);
+      `url("data:image/svg+xml,${encodeURIComponent(barbSvg(from, sp / wx.winds.length, css('--accent')))}")`);
   }
 
   function buildWeather(w) {
@@ -524,17 +795,56 @@
   }
   addEventListener('resize', resize); resize();
 
+  // --- Explore mode: orbit/zoom freely around the map, with shortcuts to each installation
+  const controls = THREE.OrbitControls ? new THREE.OrbitControls(camera, renderer.domElement) : null;
+  let exploring = false, fly = null;
+  if (controls) {
+    Object.assign(controls, { enabled: false, enableDamping: true, dampingFactor: 0.08, minDistance: 1.2, maxDistance: 70, maxPolarAngle: 1.4, screenSpacePanning: false });
+    const SPOTS = {
+      'Toute la Belgique': 'overview', 'Doel': 'nuclear', 'Coo': 'coo', 'Éolienne': 'wind', 'Éolien en mer': 'offshore',
+      'Solaire': 'solar', 'Ligne 380 kV': 'pylons', 'Cabine de quartier': 'dist', 'Maison': 'house',
+      "Port d'Anvers": 'port', 'Zeebrugge (gaz)': 'lng', 'Réseau de chaleur': 'heat', 'Bruxelles': 'city',
+    };
+    const bar = document.getElementById('exploreBar');
+    bar.querySelector('.spots').innerHTML = Object.keys(SPOTS).map(n => `<button type="button">${n}</button>`).join('');
+    bar.querySelector('.spots').addEventListener('click', e => {
+      const b = e.target.closest('button'); if (!b) return;
+      const sh = SHOTS[SPOTS[b.textContent]];
+      fly = { look: sh.look.clone(), pos: shotPos(sh) };
+    });
+    function setExplore(on) {
+      exploring = on; controls.enabled = on; fly = null;
+      document.documentElement.classList.toggle('exploring', on);
+      if (on) { controls.target.copy(camLook); camera.position.copy(camPos); controls.update(); }
+      else { camPos.copy(camera.position); camLook.copy(controls.target); } // ease back into the story camera
+    }
+    document.getElementById('explore').addEventListener('click', () => setExplore(true));
+    document.getElementById('exploreClose').addEventListener('click', () => setExplore(false));
+    addEventListener('keydown', e => { if (e.key === 'Escape' && exploring) setExplore(false); });
+  } else document.getElementById('explore').hidden = true;
+
+  let wasNear = null;
   const clock = new THREE.Clock();
   const tmp = new THREE.Vector3();
   function frame() {
     const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime;
-    const cam = CAMS[active.dataset.cam];
     const k = reduced ? 1 : 1 - Math.exp(-dt * 2.2);
-    camPos.lerp(cam[0], k); camLook.lerp(cam[1], k);
-    const orbit = active.dataset.cam === 'hero' && !reduced ? t * 0.08 : 0;
-    tmp.copy(camPos).sub(camLook).applyAxisAngle(new THREE.Vector3(0, 1, 0), Math.sin(orbit) * 0.35).add(camLook);
-    camera.position.set(tmp.x + mx * 1.5, tmp.y - my * 1.0, tmp.z);
-    camera.lookAt(camLook);
+    if (exploring) { // free navigation; a fly-to target eases the camera toward an installation
+      if (fly) {
+        controls.target.lerp(fly.look, k); camera.position.lerp(fly.pos, k);
+        if (camera.position.distanceTo(fly.pos) < 0.05) fly = null;
+      }
+      controls.update();
+    } else {
+      const sh = scrollShot();
+      if (active.dataset.cam === 'hero' && !reduced) sh.az += Math.sin(t * 0.08) * 0.35;
+      shotPos(sh, tmp);
+      const kk = reduced ? 1 : 1 - Math.exp(-dt * 5);
+      camPos.lerp(tmp, kk); camLook.lerp(sh.look, kk);
+      const par = 0.04 * sh.dist; // parallax proportional to the zoom level
+      camera.position.set(camPos.x + mx * par, camPos.y - my * par * 0.6, camPos.z);
+      camera.lookAt(camLook);
+    }
 
     // daylight
     const a = (hour - 6) / 12 * Math.PI, day = Math.max(0, Math.sin(a));
@@ -543,9 +853,7 @@
     sun.position.set(Math.cos(a) * 30, Math.max(2, Math.sin(a) * 30), 12);
     sun.intensity = 0.15 + S * 0.5;
     hemi.intensity = 0.38 + S * 0.27;
-    M.solar.emissive.setRGB(0.9, 0.6, 0.1); M.solar.emissiveIntensity = S * 0.25;
-    M.city.emissiveIntensity = Math.max(0, 1 - day * 3) * 0.9;
-    setSky(S, day);
+    // (the page background is plain paper now: no sky tint)
     if (windLayer && speed) { // downwind on screen: north up, y down
       const th = windFrom * Math.PI / 180, v = windKt * 3; // px per second
       wox = (wox - Math.sin(th) * v * dt) % 160; woy = (woy + Math.cos(th) * v * dt) % 160;
@@ -560,6 +868,14 @@
     });
 
     spinTurbines(reduced ? 0 : t, windFrom, wx ? windKt : 8);
+    anim.forEach(f => f(reduced ? 0 : t, dt));
+    // micro views: the map-scale turbines and solar tiles would look giant next to a detailed model, so hide them
+    const near = camera.position.distanceTo(exploring ? controls.target : camLook) < 2.6;
+    if (near !== wasNear) { // swap between map scale and model scale
+      wasNear = near;
+      [grp('wind'), grp('solar'), grp('city'), grp('gas'), grp('nuc'), grp('coo'), points, ...lines.map(l => l.mesh), ...labels.map(l => l.sprite), ...rings]
+        .forEach(o => { o.visible = !near; });
+    }
     steam.forEach(s => {
       const p = (s.userData.phase + t * 0.12 * speed) % 1;
       s.position.copy(s.userData.base); s.position.y += p * 1.4; s.position.x += p * 0.4;
@@ -632,6 +948,14 @@ function initClockUI(onChange) {
     });
     if (s === current) return;
     current = s;
+    meter.classList.toggle('off', !s.dataset.v); // the voltmeter only belongs to the electricity part
+    // title block: plate number + title of the part this chapter belongs to
+    let part = s.previousElementSibling;
+    while (part && !part.classList.contains('part')) part = part.previousElementSibling;
+    document.getElementById('cartTitle').textContent = part
+      ? part.querySelector('.part-n').textContent.replace('Planche ', '') + ' · ' + part.querySelector('.part-t').textContent
+      : 'Introduction';
+    if (!s.dataset.v) return;
     const [lo, hi = lo] = s.dataset.v.split(',').map(Number);
     meter.style.setProperty('--lo', pos(lo));
     meter.style.setProperty('--hi', pos(hi));

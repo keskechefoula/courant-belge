@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;800&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;1,400&display=swap">
 <link rel="stylesheet" href="style.css">
 
 <!-- Symboles de schéma électrique (norme IEC 60617, simplifiés) -->
@@ -14,11 +14,24 @@
   <symbol id="s-trafo" viewBox="0 0 48 48"><circle cx="18" cy="24" r="12"/><circle cx="30" cy="24" r="12"/></symbol>
   <symbol id="s-link" viewBox="0 0 48 48"><path d="M4 18h36l-6-6M44 30H8l6 6"/></symbol>
   <symbol id="s-store" viewBox="0 0 48 48"><path d="M4 24h14M30 24h14M18 12v24M30 18v12"/></symbol>
-  <symbol id="s-meter" viewBox="0 0 48 48"><circle cx="24" cy="24" r="17"/><text x="24" y="29" text-anchor="middle" font-size="13" font-family="Barlow Condensed, sans-serif" font-weight="600" stroke="none" fill="currentColor">kWh</text></symbol>
+  <symbol id="s-meter" viewBox="0 0 48 48"><circle cx="24" cy="24" r="17"/><text x="24" y="29" text-anchor="middle" font-size="13" font-family="IBM Plex Mono, monospace" font-weight="500" stroke="none" fill="currentColor">kWh</text></symbol>
 </svg>
 
 <div id="wind" aria-hidden="true"></div>
 <canvas id="scene" aria-hidden="true"></canvas>
+
+<button type="button" id="explore" class="explore">Explorer la carte</button>
+<div class="cartouche" aria-hidden="true">
+  <span class="k">Projet</span><span>Le courant belge</span>
+  <span class="k">Planche</span><span id="cartTitle">Introduction</span>
+  <span class="k">Échelle</span><span>non à l'échelle</span>
+  <span class="k">Sources</span><span>Elia, Eurostat, CREG</span>
+</div>
+<div id="exploreBar" class="exploreBar" role="toolbar" aria-label="Explorer la carte">
+  <p>Glissez pour tourner, molette ou pincement pour zoomer, clic droit ou deux doigts pour déplacer.</p>
+  <div class="spots"></div>
+  <button type="button" id="exploreClose" class="close">Retour au récit</button>
+</div>
 
 <aside class="meter" aria-label="Tension du courant à cette étape">
   <p class="mtitle">Tension ici</p>
@@ -36,11 +49,132 @@
 <main class="story">
   <section class="chapter hero" data-cam="hero" data-focus="" data-v="230" data-what="votre prise">
     <div class="panel">
-      <h1>Le courant belge</h1>
-      <p class="lede">Quand vous allumez une lampe, un réseau de plusieurs milliers de kilomètres s'ajuste à la seconde près. Faites défiler la page pour suivre l'électricité, de la centrale jusqu'à votre prise.</p>
-      <p class="vnote"><b>230 V</b> Le voltmètre, à côté de la carte, montre la tension du courant à chaque étape. Elle monte très haut pour voyager, puis redescend avant d'arriver chez vous.</p>
+      <h1><span>Le</span> <span>courant</span> <span>belge</span></h1>
+      <p class="lede">Quand vous allumez une lampe, un réseau de plusieurs milliers de kilomètres s'ajuste à la seconde près. Mais l'électricité n'est qu'une partie de l'énergie que nous utilisons. Faites défiler la page pour comprendre tout le secteur.</p>
+      <p class="lede">Le site suit le plan de l'article Wikipédia « Énergie en Belgique », en neuf parties : de la vue d'ensemble jusqu'aux acteurs du marché.</p>
     </div>
   </section>
+
+  <div class="part" id="partie-1">
+    <p class="part-n">Planche 1 / 9</p>
+    <h2 class="part-t">Vue d'ensemble</h2>
+    <p class="part-d">Les grands chiffres de l'énergie belge, pour situer tout le reste.</p>
+  </div>
+
+  <section class="chapter" data-cam="wide" data-focus="" id="chiffres">
+    <div class="panel">
+      <h2><svg class="sym"><use href="#s-meter"/></svg>Les chiffres clés</h2>
+      <dl class="figs">
+        <div><dt>50 Mtep</dt><dd>d'énergie primaire consommée en 2024, avant toute transformation</dd></div>
+        <div><dt>75 %</dt><dd>de cette énergie est importée : pétrole, gaz, uranium</dd></div>
+        <div><dt>31 Mtep</dt><dd>d'énergie finale utilisée par les consommateurs</dd></div>
+        <div><dt>80 TWh</dt><dd>d'électricité consommée en 2025</dd></div>
+        <div><dt>98 Mt</dt><dd>de gaz à effet de serre émis en 2024, en équivalent CO₂</dd></div>
+      </dl>
+      <p class="note">1 Mtep = un million de tonnes équivalent pétrole, environ 11,6 TWh. Sources : Eurostat (bilan énergétique et émissions 2024), Elia (électricité 2025).</p>
+    </div>
+  </section>
+
+
+  <div class="part" id="partie-2">
+    <p class="part-n">Planche 2 / 9</p>
+    <h2 class="part-t">Historique</h2>
+    <p class="part-d">Cinquante ans de choix énergétiques, du nucléaire à l'éolien en mer.</p>
+  </div>
+
+  <section class="chapter" data-cam="nuclear" data-focus="nuc" id="histoire">
+    <div class="panel">
+      <h2><svg class="sym"><use href="#s-meter"/></svg>Les grandes dates</h2>
+      <ol class="timeline">
+        <li><b>1975</b> Mise en service des premiers réacteurs nucléaires commerciaux : Doel 1, Doel 2 et Tihange 1.</li>
+        <li><b>1985</b> Doel 4 et Tihange 3, les deux derniers réacteurs encore autorisés aujourd'hui, démarrent.</li>
+        <li><b>1990</b> Plusieurs producteurs fusionnent pour former Electrabel, qui domine alors le marché.</li>
+        <li><b>2003</b> La loi de sortie du nucléaire est votée. En Flandre, les ménages peuvent choisir leur fournisseur.</li>
+        <li><b>2007</b> Le marché s'ouvre aussi en Wallonie et à Bruxelles.</li>
+        <li><b>2009</b> Premières éoliennes en mer du Nord belge, sur le banc de Thornton.</li>
+        <li><b>2014</b> Plusieurs réacteurs à l'arrêt : un plan de délestage est préparé pour l'hiver.</li>
+        <li><b>2019–2020</b> Nouvelles liaisons directes avec le Royaume-Uni (Nemo Link) et l'Allemagne (ALEGrO).</li>
+        <li><b>2022</b> Crise des prix de l'énergie en Europe. Doel 3 ferme.</li>
+        <li><b>2025</b> Le Parlement abroge la loi de sortie du nucléaire. Doel 1, Tihange 1 et Doel 2 ferment.</li>
+        <li><b>2035</b> Fin prévue de la prolongation de Doel 4 et Tihange 3.</li>
+      </ol>
+    </div>
+  </section>
+
+
+  <div class="part" id="partie-3">
+    <p class="part-n">Planche 3 / 9</p>
+    <h2 class="part-t">Politique énergétique</h2>
+    <p class="part-d">Qui décide quoi : l'Europe, l'État fédéral et les trois régions.</p>
+  </div>
+
+  <section class="chapter" data-cam="plan" data-focus="" id="politique">
+    <div class="panel">
+      <h2><svg class="sym"><use href="#s-meter"/></svg>Qui décide ?</h2>
+      <p>En Belgique, l'énergie est partagée entre plusieurs niveaux de pouvoir. C'est une des raisons pour lesquelles les règles et les prix changent d'une région à l'autre.</p>
+      <dl class="chain">
+        <dt>Europe</dt><dd>règles du marché intérieur, objectifs climatiques communs</dd>
+        <dt>Fédéral</dt><dd>nucléaire, éolien en mer, réseau de transport, sécurité d'approvisionnement, TVA, tarif social</dd>
+        <dt>Régions</dt><dd>réseaux de distribution, énergies renouvelables sur terre et leurs aides, économies d'énergie, primes à la rénovation</dd>
+      </dl>
+      <p>Pour éviter les pénuries après la fermeture des réacteurs, l'État a créé un <strong>mécanisme de rémunération de capacité</strong> : Elia organise des enchères qui paient des centrales, des batteries ou des gros consommateurs flexibles pour être disponibles quand il le faut.</p>
+      <p>Ces choix s'inscrivent dans un <strong>plan national énergie-climat</strong>, qui fixe les objectifs de la Belgique pour 2030.</p>
+    </div>
+  </section>
+
+
+  <div class="part" id="partie-4">
+    <p class="part-n">Planche 4 / 9</p>
+    <h2 class="part-t">Émissions de gaz à effet de serre</h2>
+    <p class="part-d">Ce que l'énergie coûte au climat, et comment ça évolue.</p>
+  </div>
+
+  <section class="chapter" data-cam="port" data-focus="" id="emissions">
+    <div class="panel">
+      <h2><svg class="sym"><use href="#s-meter"/></svg>D'où viennent nos émissions ?</h2>
+      <p>La Belgique a émis 98 millions de tonnes d'équivalent CO₂ en 2024, un tiers de moins qu'en 1990. La production d'électricité a beaucoup baissé ; les transports, eux, émettent plus qu'en 1990.</p>
+      <dl class="figs">
+        <div><dt>145 Mt</dt><dd>en 1990</dd></div>
+        <div><dt>98 Mt</dt><dd>en 2024, soit −33 %</dd></div>
+      </dl>
+      <ul class="bill" id="ghg"></ul>
+      <p class="note">Source : Eurostat, inventaire des émissions de gaz à effet de serre (hors forêts et sols), 2024. Pour l'électricité en direct, voir le CO₂ par kWh dans la partie 7.</p>
+    </div>
+  </section>
+
+
+  <div class="part" id="partie-5">
+    <p class="part-n">Planche 5 / 9</p>
+    <h2 class="part-t">Énergie primaire</h2>
+    <p class="part-d">L'énergie telle qu'on la trouve avant de la transformer : pétrole brut, gaz, uranium, vent, soleil.</p>
+  </div>
+
+  <section class="chapter" data-cam="port" data-focus="nuc" id="primaire">
+    <div class="panel">
+      <h2><svg class="sym"><use href="#s-meter"/></svg>Surtout importée</h2>
+      <p>L'énergie primaire, c'est l'énergie avant transformation. La Belgique n'a ni pétrole, ni gaz, ni charbon exploités : elle importe environ les trois quarts de ce qu'elle consomme. Ce qu'elle produit elle-même vient surtout du nucléaire et des renouvelables.</p>
+      <div class="mix" id="mixPrimary" role="img"></div>
+      <ul class="legend" id="legendPrimary"></ul>
+      <p>Le port d'Anvers abrite l'un des plus grands pôles de raffinage et de chimie d'Europe : une grande partie du pétrole importé est raffinée puis réexportée.</p>
+      <p class="note">Source : Eurostat, consommation intérieure brute 2024 (50 Mtep). L'uranium du nucléaire est lui aussi importé.</p>
+    </div>
+  </section>
+
+  <section class="chapter" data-cam="lng" data-focus="" id="gaz">
+    <div class="panel">
+      <h2><svg class="sym"><use href="#s-meter"/></svg>D'où vient notre gaz ?</h2>
+      <p>Le gaz arrive par gazoducs, surtout depuis la Norvège, et par méthaniers au terminal de Zeebrugge. <strong>Fluxys</strong> gère le transport du gaz en Belgique, comme Elia pour l'électricité. Une partie du gaz ne fait que traverser le pays vers les voisins.</p>
+      <ul class="bill" id="gasOrigin"></ul>
+      <p class="note">Source : Eurostat, importations de gaz naturel de la Belgique en 2024 par pays d'origine (millions de m³), transit compris.</p>
+    </div>
+  </section>
+
+
+  <div class="part" id="partie-6">
+    <p class="part-n">Planche 6 / 9</p>
+    <h2 class="part-t">Consommation finale d'énergie</h2>
+    <p class="part-d">L'énergie qui arrive chez les utilisateurs : carburants, gaz, électricité, chaleur.</p>
+  </div>
 
   <section class="chapter" data-cam="overview" data-focus="" data-v="230" data-what="votre prise">
     <div class="panel">
@@ -52,6 +186,21 @@
       <p class="note">Source : Eurostat, bilan énergétique de la Belgique 2024, consommation finale d'énergie.</p>
     </div>
   </section>
+  <section class="chapter" data-cam="city" data-focus="city" id="secteurs">
+    <div class="panel">
+      <h2><svg class="sym"><use href="#s-meter"/></svg>Qui consomme l'énergie ?</h2>
+      <p>L'industrie reste la première consommatrice d'énergie, devant les transports et les ménages.</p>
+      <ul class="bill" id="energySectors"></ul>
+      <p class="note">Source : Eurostat, consommation finale d'énergie 2024 (31 Mtep, hors usages non énergétiques comme les matières premières de la chimie).</p>
+    </div>
+  </section>
+
+
+  <div class="part" id="partie-7">
+    <p class="part-n">Planche 7 / 9</p>
+    <h2 class="part-t">Électricité</h2>
+    <p class="part-d">De la centrale à votre prise. Suivez le voltmètre : la tension monte pour voyager loin, puis redescend avant d'arriver chez vous.</p>
+  </div>
 
   <section class="chapter" data-cam="overview" data-focus="nuc gas wind solar" data-v="10000,25000" data-what="sortie des centrales">
     <div class="panel">
@@ -64,63 +213,13 @@
     </div>
   </section>
 
-  <section class="chapter" data-cam="overview" data-focus="nuc solar" data-v="10000,25000" data-what="sortie des centrales" id="annees">
+  <section class="chapter" data-cam="grid" data-focus="nuc solar" data-v="10000,25000" data-what="sortie des centrales" id="annees">
     <div class="panel">
       <h2><svg class="sym"><use href="#s-gen"/></svg>D'une année à l'autre</h2>
       <p>En 2021, les centrales belges ont produit 93 TWh, dont la moitié venait du nucléaire. En 2025, elles n'en ont produit que 69 TWh : plusieurs réacteurs ont fermé, et la Belgique importe davantage. Pendant ce temps, le solaire a plus que doublé.</p>
       <div class="years" id="years"></div>
       <ul class="legend compact" id="yearsLegend"></ul>
       <p class="note">Source : production annuelle calculée à partir des données d'Elia (TWh).</p>
-    </div>
-  </section>
-
-  <section class="chapter" data-cam="overview" data-focus="city" data-v="230,150000" data-what="des usines aux maisons">
-    <div class="panel">
-      <h2><svg class="sym"><use href="#s-meter"/></svg>Qui consomme l'électricité ?</h2>
-      <p>Les ménages n'utilisent qu'un cinquième de l'électricité belge. La première consommatrice, c'est l'industrie : la chimie du port d'Anvers, la sidérurgie, l'agroalimentaire… Viennent ensuite les commerces, les bureaux et les services publics.</p>
-      <ul class="bill" id="sectors"></ul>
-      <p class="note">Source : Eurostat, consommation finale d'électricité de la Belgique en 2024 (77 TWh).</p>
-      <p class="vnote"><b>230 V à 150 kV</b> Les maisons sont branchées en basse tension, les grandes usines directement en haute tension.</p>
-    </div>
-  </section>
-
-  <section class="chapter" data-cam="wide" data-focus="grid" data-v="30000,380000" data-what="réseau d'Elia" id="direct">
-    <div class="panel">
-      <h2><svg class="sym"><use href="#s-meter"/></svg>En ce moment</h2>
-      <p id="liveStatus" class="note" aria-live="polite">Chargement des données d'Elia…</p>
-      <p id="meteoTxt" class="note">Chargement de la météo…</p>
-      <div class="live" id="live" hidden>
-        <dl class="figs">
-          <div><dt id="liveLoad">–</dt><dd>consommés en Belgique en ce moment</dd></div>
-          <div><dt id="liveGen">–</dt><dd>produits en Belgique à la dernière donnée publiée</dd></div>
-          <div><dt id="liveCo2">–</dt><dd id="liveCo2Txt">de CO₂ par kWh consommé</dd></div>
-        </dl>
-        <p class="sub">Qui produit ? <span class="note" id="liveMixTime"></span></p>
-        <div class="mix" id="liveMix" role="img"></div>
-        <ul class="legend" id="liveLegend"></ul>
-        <p class="sub">Aux frontières</p>
-        <ul class="borders" id="liveBorders"></ul>
-        <p class="sub">Sur la carte</p>
-        <p class="note">Le fond prend la couleur du ciel : bleu quand il est dégagé, blanc quand il est couvert, un mélange des deux quand il est partiellement nuageux, sombre la nuit. Le halo en haut à droite est le soleil : jaune quand il est faible, orangé quand il tape fort. Les nuages au-dessus de la carte suivent la couverture nuageuse. Les barbules en fond montrent le vent moyen sur le pays. Elles glissent dans le sens du vent, d'autant plus vite qu'il souffle fort : le trait pointe d'où vient le vent, une grande barbe vaut 10 nœuds (environ 18 km/h), une petite 5 nœuds, un cercle signale le calme.</p>
-        <p class="note">1 MW, c'est à peu près 400 bouilloires allumées en même temps. Le CO₂ compte aussi le courant importé. En 2025, la moyenne était d'environ 120 g par kWh. Mise à jour toutes les 5 minutes.</p>
-      </div>
-    </div>
-  </section>
-
-  <section class="chapter" data-cam="wide" data-focus="grid" data-v="30000,380000" data-what="réseau d'Elia" id="jour">
-    <div class="panel">
-      <h2><svg class="sym"><use href="#s-meter"/></svg>Aujourd'hui et demain</h2>
-      <p>La consommation suit notre rythme de vie : elle baisse la nuit et grimpe le matin, puis encore le soir. Le soleil et le vent, eux, suivent la météo. Elia prévoit les trois pour garder le réseau en équilibre.</p>
-      <p id="dayStatus" class="note" aria-live="polite">Chargement des données d'Elia…</p>
-      <figure class="chart" id="dayChart" hidden>
-        <svg id="daySvg" viewBox="0 0 600 300" role="img" aria-label="Consommation, production solaire et éolienne aujourd'hui et demain"></svg>
-        <figcaption class="keys">
-          <span style="--c:var(--ink)">Consommation</span>
-          <span style="--c:var(--sun)">Solaire</span>
-          <span style="--c:var(--wind)">Éolien</span>
-        </figcaption>
-      </figure>
-      <p class="note">À gauche du trait vertical : ce qui a été mesuré. À droite : les prévisions d'Elia.</p>
     </div>
   </section>
 
@@ -152,7 +251,7 @@
     </div>
   </section>
 
-  <section class="chapter" data-cam="overview" data-focus="gas solar" data-v="230,150000" data-what="des toits aux centrales">
+  <section class="chapter" data-cam="solar" data-focus="gas solar" data-v="230,150000" data-what="des toits aux centrales">
     <div class="panel">
       <h2><svg class="sym"><use href="#s-gen"/></svg>Le gaz qui s'allume, le soleil qui s'invite</h2>
       <p>Les centrales au gaz démarrent en quelques minutes. Elles comblent les creux quand le vent tombe ou quand le soleil se couche.</p>
@@ -162,13 +261,23 @@
     </div>
   </section>
 
+  <section class="chapter" data-cam="coo" data-focus="coo" data-v="150000,380000" data-what="haute tension">
+    <div class="panel">
+      <h2><svg class="sym"><use href="#s-store"/></svg>Coo, la batterie des Ardennes</h2>
+      <p>Quand il y a trop d'électricité, la centrale de Coo-Trois-Ponts pompe l'eau de l'Amblève vers deux bassins en hauteur. Quand la demande grimpe, l'eau redescend et fait tourner des turbines.</p>
+      <p>C'est la plus grande installation de stockage du pays : elle peut démarrer en quelques minutes et produire pendant plusieurs heures. La centrale de Plate-Taille, aux lacs de l'Eau d'Heure, fonctionne sur le même principe, en plus petit (143 MW).</p>
+      <p>La Belgique compte aussi une dizaine de petites centrales hydrauliques au fil de l'eau, surtout sur la Meuse. Ensemble, elles fournissent moins de 1 % de la production du pays.</p>
+      <p class="vnote"><b>Haute tension</b> Comme une centrale, Coo est reliée directement au réseau de transport.</p>
+    </div>
+  </section>
+
   <section class="chapter" data-cam="overview" data-focus="nuc gas wind coo" data-v="10000,380000" data-what="des centrales au réseau" id="proprietaires">
     <div class="panel">
       <h2><svg class="sym"><use href="#s-gen"/></svg>À qui appartiennent les centrales ?</h2>
       <p>Sur la carte, les grandes centrales et les parcs en mer ont la couleur de leur propriétaire principal. Beaucoup appartiennent à plusieurs sociétés à la fois.</p>
       <ul class="owners">
         <li style="--c:var(--own-engie)"><b>Engie Electrabel</b><small>Doel, Tihange, Coo, les centrales au gaz d'Amercœur et de Drogenbos, quatre petites centrales hydrauliques (Bévercé, Bütgenbach, Heid-de-Goreux, La Vierre) et 17,5 % de SeaMade. C'est aussi un fournisseur.</small></li>
-        <li style="--c:var(--own-luminus)"><b>Luminus</b><small>Premier producteur d'éolien sur terre du pays : 314 éoliennes pour 847 MW. Aussi sept centrales hydrauliques sur la Meuse et la Sambre (Lixhe, Monsin, Ivoz-Ramet, Ampsin-Neuville, Andenne, Grands-Malades, Floriffoux) et les centrales au gaz de Seraing et de Ringvaart (Gand). C'est aussi un fournisseur.</small></li>
+        <li style="--c:var(--own-luminus)"><b>Luminus</b><small>314 éoliennes sur terre (847 MW), le plus grand parc terrestre du pays selon l'entreprise. Aussi sept centrales hydrauliques sur la Meuse et la Sambre (Lixhe, Monsin, Ivoz-Ramet, Ampsin-Neuville, Andenne, Grands-Malades, Floriffoux) et les centrales au gaz de Seraing et de Ringvaart (Gand). C'est aussi un fournisseur.</small></li>
         <li style="--c:var(--own-total)"><b>TotalEnergies</b><small>Centrale de pompage de Plate-Taille, aux lacs de l'Eau d'Heure (143 MW), reprise à l'origine par Lampiris. C'est aussi un fournisseur.</small></li>
         <li style="--c:var(--own-parkwind)"><b>Parkwind</b><small>Parcs en mer Belwind, Northwind, Nobelwind et Northwester 2, avec des partenaires comme Sumitomo.</small></li>
         <li style="--c:var(--own-otary)"><b>Otary</b><small>Rentel, et 70 % de SeaMade (avec Engie et Eneco). Otary regroupe des sociétés belges comme DEME, Aspiravi, Elicio et des investisseurs publics.</small></li>
@@ -180,7 +289,7 @@
     </div>
   </section>
 
-  <section class="chapter" data-cam="grid" data-focus="grid" data-v="30000,380000" data-what="réseau d'Elia">
+  <section class="chapter" data-cam="pylons" data-focus="grid" data-v="30000,380000" data-what="réseau d'Elia">
     <div class="panel">
       <h2><svg class="sym"><use href="#s-trafo"/></svg>L'autoroute à 380 000 volts</h2>
       <p><strong>Elia</strong> gère le réseau de transport : les grandes lignes à haute tension, environ 8 000 km de lignes et de câbles.</p>
@@ -207,17 +316,7 @@
     </div>
   </section>
 
-  <section class="chapter" data-cam="coo" data-focus="coo" data-v="150000,380000" data-what="haute tension">
-    <div class="panel">
-      <h2><svg class="sym"><use href="#s-store"/></svg>Coo, la batterie des Ardennes</h2>
-      <p>Quand il y a trop d'électricité, la centrale de Coo-Trois-Ponts pompe l'eau de l'Amblève vers deux bassins en hauteur. Quand la demande grimpe, l'eau redescend et fait tourner des turbines.</p>
-      <p>C'est la plus grande installation de stockage du pays : elle peut démarrer en quelques minutes et produire pendant plusieurs heures. La centrale de Plate-Taille, aux lacs de l'Eau d'Heure, fonctionne sur le même principe, en plus petit (143 MW).</p>
-      <p>La Belgique compte aussi une dizaine de petites centrales hydrauliques au fil de l'eau, surtout sur la Meuse. Ensemble, elles fournissent moins de 1 % de la production du pays.</p>
-      <p class="vnote"><b>Haute tension</b> Comme une centrale, Coo est reliée directement au réseau de transport.</p>
-    </div>
-  </section>
-
-  <section class="chapter" data-cam="city" data-focus="dist" data-v="400,15000" data-what="réseau de quartier">
+  <section class="chapter" data-cam="dist" data-focus="dist" data-v="400,15000" data-what="réseau de quartier">
     <div class="panel">
       <h2><svg class="sym"><use href="#s-trafo"/></svg>Le dernier kilomètre</h2>
       <p>Près des villes, des transformateurs abaissent la tension, puis des cabines de quartier la baissent encore. Ce réseau local est géré par une société qui dépend de votre région :</p>
@@ -231,7 +330,17 @@
     </div>
   </section>
 
-  <section class="chapter" data-cam="home" data-focus="dist city" data-v="230" data-what="votre prise">
+  <section class="chapter" data-cam="city" data-focus="city" data-v="230,150000" data-what="des usines aux maisons">
+    <div class="panel">
+      <h2><svg class="sym"><use href="#s-meter"/></svg>Qui consomme l'électricité ?</h2>
+      <p>Les ménages n'utilisent qu'un cinquième de l'électricité belge. La première consommatrice, c'est l'industrie : la chimie du port d'Anvers, la sidérurgie, l'agroalimentaire… Viennent ensuite les commerces, les bureaux et les services publics.</p>
+      <ul class="bill" id="sectors"></ul>
+      <p class="note">Source : Eurostat, consommation finale d'électricité de la Belgique en 2024 (77 TWh).</p>
+      <p class="vnote"><b>230 V à 150 kV</b> Les maisons sont branchées en basse tension, les grandes usines directement en haute tension.</p>
+    </div>
+  </section>
+
+  <section class="chapter" data-cam="house" data-focus="dist city" data-v="230" data-what="votre prise">
     <div class="panel">
       <h2><svg class="sym"><use href="#s-meter"/></svg>Chez vous</h2>
       <p>La consommation change beaucoup au cours d'une journée. Déplacez le curseur pour voir ce qui se passe sur le réseau.</p>
@@ -244,7 +353,48 @@
     </div>
   </section>
 
-  <section class="chapter" data-cam="home" data-focus="city" data-v="230" data-what="votre prise">
+  <section class="chapter" data-cam="grid" data-focus="grid" data-v="30000,380000" data-what="réseau d'Elia" id="direct">
+    <div class="panel">
+      <h2><svg class="sym"><use href="#s-meter"/></svg>En ce moment</h2>
+      <p id="liveStatus" class="note" aria-live="polite">Chargement des données d'Elia…</p>
+      <p id="meteoTxt" class="note">Chargement de la météo…</p>
+      <div class="live" id="live" hidden>
+        <dl class="figs">
+          <div><dt id="liveLoad">–</dt><dd>consommés en Belgique en ce moment</dd></div>
+          <div><dt id="liveGen">–</dt><dd>produits en Belgique à la dernière donnée publiée</dd></div>
+          <div><dt id="liveCo2">–</dt><dd id="liveCo2Txt">de CO₂ par kWh consommé</dd></div>
+        </dl>
+        <div class="co2scale"><i></i><span><span>0 g</span><span>CO₂ par kWh : la couleur de la Belgique sur la carte</span><span>400 g</span></span></div>
+        <p class="sub">Qui produit ? <span class="note" id="liveMixTime"></span></p>
+        <div class="mix" id="liveMix" role="img"></div>
+        <ul class="legend" id="liveLegend"></ul>
+        <p class="sub">Aux frontières</p>
+        <ul class="borders" id="liveBorders"></ul>
+        <p class="sub">Sur la carte</p>
+        <p class="note">Le fond prend la couleur du ciel : bleu quand il est dégagé, blanc quand il est couvert, un mélange des deux quand il est partiellement nuageux, sombre la nuit. Le halo en haut à droite est le soleil : jaune quand il est faible, orangé quand il tape fort. Les nuages au-dessus de la carte suivent la couverture nuageuse. Les barbules en fond montrent le vent moyen sur le pays. Elles glissent dans le sens du vent, d'autant plus vite qu'il souffle fort : le trait pointe d'où vient le vent, une grande barbe vaut 10 nœuds (environ 18 km/h), une petite 5 nœuds, un cercle signale le calme.</p>
+        <p class="note">1 MW, c'est à peu près 400 bouilloires allumées en même temps. Le CO₂ compte aussi le courant importé. En 2025, la moyenne était d'environ 120 g par kWh. Mise à jour toutes les 5 minutes.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="chapter" data-cam="wind" data-focus="grid" data-v="30000,380000" data-what="réseau d'Elia" id="jour">
+    <div class="panel">
+      <h2><svg class="sym"><use href="#s-meter"/></svg>Aujourd'hui et demain</h2>
+      <p>La consommation suit notre rythme de vie : elle baisse la nuit et grimpe le matin, puis encore le soir. Le soleil et le vent, eux, suivent la météo. Elia prévoit les trois pour garder le réseau en équilibre.</p>
+      <p id="dayStatus" class="note" aria-live="polite">Chargement des données d'Elia…</p>
+      <figure class="chart" id="dayChart" hidden>
+        <svg id="daySvg" viewBox="0 0 600 300" role="img" aria-label="Consommation, production solaire et éolienne aujourd'hui et demain"></svg>
+        <figcaption class="keys">
+          <span style="--c:var(--ink)">Consommation</span>
+          <span style="--c:var(--sun)">Solaire</span>
+          <span style="--c:var(--wind)">Éolien</span>
+        </figcaption>
+      </figure>
+      <p class="note">À gauche du trait vertical : ce qui a été mesuré. À droite : les prévisions d'Elia.</p>
+    </div>
+  </section>
+
+  <section class="chapter" data-cam="solar" data-focus="city" data-v="230" data-what="votre prise">
     <div class="panel">
       <h2><svg class="sym"><use href="#s-meter"/></svg>Le prix sur le marché</h2>
       <p>Les fournisseurs achètent une partie de leur électricité en bourse, la veille pour le lendemain. En juillet 2026, le prix moyen y était de 109 € par MWh, soit environ 11 centimes par kWh. Au bout du compte, un ménage paie environ 39 centimes par kWh, taxes et réseau compris.</p>
@@ -257,7 +407,7 @@
     </div>
   </section>
 
-  <section class="chapter" data-cam="home" data-focus="city" data-v="230" data-what="votre prise">
+  <section class="chapter" data-cam="house" data-focus="city" data-v="230" data-what="votre prise">
     <div class="panel">
       <h2><svg class="sym"><use href="#s-meter"/></svg>Votre facture</h2>
       <p>Un ménage moyen consomme 3 500 kWh par an. En août 2026, il payait en moyenne <strong class="n" id="billTotal">1 350 €</strong> par an. Où va cet argent ?</p>
@@ -273,7 +423,7 @@
     </div>
   </section>
 
-  <section class="chapter" data-cam="home" data-focus="city" data-v="230" data-what="votre prise" id="calcul">
+  <section class="chapter" data-cam="house" data-focus="city" data-v="230" data-what="votre prise" id="calcul">
     <div class="panel">
       <h2><svg class="sym"><use href="#s-meter"/></svg>Combien consomme votre maison ?</h2>
       <p>Un appareil a une <strong>puissance</strong>, en watts (W) : c'est ce qu'il tire du réseau quand il fonctionne. Multipliez-la par la durée d'utilisation et vous obtenez l'<strong>énergie</strong> consommée, en kilowattheures (kWh). C'est elle que vous payez. Une télé de 100 W allumée pendant 3 heures consomme 0,3 kWh.</p>
@@ -296,7 +446,7 @@
     </div>
   </section>
 
-  <section class="chapter" data-cam="home" data-focus="city" data-v="230" data-what="votre prise">
+  <section class="chapter" data-cam="house" data-focus="city" data-v="230" data-what="votre prise">
     <div class="panel">
       <h2><svg class="sym"><use href="#s-meter"/></svg>Consommer au bon moment</h2>
       <p>Sans rien changer à votre confort, vous pouvez aider le réseau, et parfois votre portefeuille.</p>
@@ -306,6 +456,27 @@
         <li><b>Regardez les contrats dynamiques.</b> Avec un compteur digital, certains fournisseurs proposent un prix qui change chaque heure, selon le marché. On paie moins aux heures creuses, mais plus pendant la pointe.</li>
       </ul>
       <p class="note">La courbe « Aujourd'hui et demain », plus haut, montre les heures où le soleil et le vent produisent le plus.</p>
+    </div>
+  </section>
+
+
+  <div class="part" id="partie-8">
+    <p class="part-n">Planche 8 / 9</p>
+    <h2 class="part-t">Marché et acteurs</h2>
+    <p class="part-d">Comment le marché s'est ouvert, et qui fait quoi aujourd'hui.</p>
+  </div>
+
+  <section class="chapter" data-cam="plan" data-focus="" id="liberalisation">
+    <div class="panel">
+      <h2><svg class="sym"><use href="#s-link"/></svg>Un marché ouvert à la concurrence</h2>
+      <p>Jusqu'aux années 2000, un petit nombre d'entreprises produisaient, transportaient et vendaient l'électricité et le gaz. L'Europe a imposé d'ouvrir le marché à la concurrence : depuis 2007, tous les consommateurs belges choisissent leur fournisseur.</p>
+      <p>Les métiers ont été séparés. Les <strong>réseaux</strong> restent des monopoles régulés : on ne choisit pas son gestionnaire de réseau, il dépend de l'adresse. La <strong>production</strong> et la <strong>fourniture</strong> sont ouvertes à la concurrence.</p>
+      <dl class="chain">
+        <dt>Producteurs</dt><dd>fabriquent l'électricité ; ils la vendent sur le marché de gros</dd>
+        <dt>Réseaux</dt><dd>Elia et Fluxys pour le transport, Fluvius, ORES, RESA et Sibelga pour la distribution</dd>
+        <dt>Fournisseurs</dt><dd>achètent l'énergie et la revendent aux clients ; ce sont eux qui envoient la facture</dd>
+        <dt>Régulateurs</dt><dd>CREG au fédéral, VNR, CWaPE et Brugel dans les régions : ils contrôlent les tarifs de réseau et le bon fonctionnement du marché</dd>
+      </dl>
     </div>
   </section>
 
@@ -366,6 +537,22 @@
     </div>
   </section>
 
+
+  <div class="part" id="partie-9">
+    <p class="part-n">Planche 9 / 9</p>
+    <h2 class="part-t">Réseaux de chaleur</h2>
+    <p class="part-d">Chauffer un quartier entier avec une seule source de chaleur.</p>
+  </div>
+
+  <section class="chapter" data-cam="heat" data-focus="city" id="chaleur">
+    <div class="panel">
+      <h2><svg class="sym"><use href="#s-meter"/></svg>Le chauffage partagé</h2>
+      <p>Un réseau de chaleur transporte de l'eau chaude par des tuyaux enterrés, depuis une source centrale jusqu'aux bâtiments d'un quartier. La chaleur peut venir d'un incinérateur de déchets, d'une cogénération, de biomasse ou de la chaleur perdue d'une usine.</p>
+      <p>En Belgique, ces réseaux restent rares : ils fournissent environ 1 % de l'énergie finale. Les régions veulent les développer pour réduire la consommation de gaz et de mazout des logements.</p>
+      <p class="note">Source : Eurostat, consommation finale d'énergie 2024 (chaleur : 1,0 %).</p>
+    </div>
+  </section>
+
   <footer class="chapter end" data-cam="overview" data-focus="" data-v="230" data-what="votre prise">
     <div class="panel">
       <h2>Pour aller plus loin</h2>
@@ -376,5 +563,6 @@
 </main>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script src="script.js"></script>
 <script src="data.js"></script>
