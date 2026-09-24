@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="fr">
+<meta charset="utf-8">
+<title>Le courant belge</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;800&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap">
+<link rel="stylesheet" href="style.css">
+
+<!-- Symboles de schéma électrique (norme IEC 60617, simplifiés) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="s-gen" viewBox="0 0 48 48"><circle cx="24" cy="24" r="17"/><path d="M13 24c3.5-7 7.5-7 11 0s7.5 7 11 0"/></symbol>
+  <symbol id="s-trafo" viewBox="0 0 48 48"><circle cx="18" cy="24" r="12"/><circle cx="30" cy="24" r="12"/></symbol>
+  <symbol id="s-link" viewBox="0 0 48 48"><path d="M4 18h36l-6-6M44 30H8l6 6"/></symbol>
+  <symbol id="s-store" viewBox="0 0 48 48"><path d="M4 24h14M30 24h14M18 12v24M30 18v12"/></symbol>
+  <symbol id="s-meter" viewBox="0 0 48 48"><circle cx="24" cy="24" r="17"/><text x="24" y="29" text-anchor="middle" font-size="13" font-family="Barlow Condensed, sans-serif" font-weight="600" stroke="none" fill="currentColor">kWh</text></symbol>
+</svg>
+
+<div id="wind" aria-hidden="true"></div>
+<canvas id="scene" aria-hidden="true"></canvas>
+
+<aside class="meter" aria-label="Tension du courant à cette étape">
+  <p class="mtitle">Tension ici</p>
+  <div class="scale">
+    <span style="--p:.1">230 V</span>
+    <span style="--p:.278">1 kV</span>
+    <span style="--p:.556">10 kV</span>
+    <span style="--p:.833">100 kV</span>
+    <span style="--p:.994">380 kV</span>
+    <i class="band"></i>
+  </div>
+  <p class="read"><output id="volt">230 V</output><span id="voltWhat">votre prise</span></p>
+</aside>
+
+<main class="story">
+  <section class="chapter hero" data-cam="hero" data-focus="" data-v="230" data-what="votre prise">
+    <div class="panel">
+      <h1>Le courant belge</h1>
+      <p class="lede">Quand vous allumez une lampe, un réseau de plusieurs milliers de kilomètres s'ajuste à la seconde près. Faites défiler la page pour suivre l'électricité, de la centrale jusqu'à votre prise.</p>
+      <p class="vnote"><b>230 V</b> Le voltmètre, à côté de la carte, montre la tension du courant à chaque étape. Elle monte très haut pour voyager, puis redescend avant d'arriver chez vous.</p>
+    </div>
+  </section>
+
+  <section class="chapter" data-cam="overview" data-focus="" data-v="230" data-what="votre prise">
+    <div class="panel">
+      <h2><svg class="sym"><use href="#s-meter"/></svg>L'électricité, un cinquième de l'énergie</h2>
+      <p>Quand on parle d'énergie, on pense souvent à l'électricité. Pourtant, elle ne représente qu'environ un cinquième de toute l'énergie consommée en Belgique. Le reste, ce sont surtout des carburants pour les transports, du mazout et du gaz pour le chauffage et l'industrie.</p>
+      <div class="mix" id="mixEnergy" role="img"></div>
+      <ul class="legend" id="legendEnergy"></ul>
+      <p>C'est pour ça qu'on parle d'« électrifier » : remplacer les voitures à essence et les chaudières par des modèles électriques. Moins de pétrole et de gaz, mais plus d'électricité à produire et à transporter.</p>
+      <p class="note">Source : Eurostat, bilan énergétique de la Belgique 2024, consommation finale d'énergie.</p>
+    </div>
+  </section>
+
+  <section class="chapter" data-cam="overview" data-focus="nuc gas wind solar" data-v="10000,25000" data-what="sortie des centrales">
+    <div class="panel">
+      <h2><svg class="sym"><use href="#s-gen"/></svg>Qui produit notre électricité ?</h2>
+      <p>En 2025, la Belgique a consommé <strong class="n">80 TWh</strong> d'électricité et en a produit <strong class="n">69 TWh</strong>. La différence, environ un septième, a été importée des pays voisins.</p>
+      <div class="mix" id="mix2025" role="img"></div>
+      <ul class="legend" id="legend2025"></ul>
+      <p class="note">Source : données de production d'Elia pour 2025. 1 TWh = un milliard de kWh.</p>
+      <p class="vnote"><b>10–25 kV</b> C'est la tension que produisent les alternateurs des grandes centrales.</p>
+    </div>
+  </section>
+
+  <section class="chapter" data-cam="overview" data-focus="nuc solar" data-v="10000,25000" data-what="sortie des centrales" id="annees">
+    <div class="panel">
+      <h2><svg class="sym"><use href="#s-gen"/></svg>D'une année à l'autre</h2>
+      <p>En 2021, les centrales belges ont produit 93 TWh, dont la moitié venait du nucléaire. En 2025, elles n'en ont produit que 69 TWh : plusieurs réacteurs ont fermé, et la Belgique importe davantage. Pendant ce temps, le solaire a plus que doublé.</p>
+      <div class="years" id="years"></div>
+      <ul class="legend compact" id="yearsLegend"></ul>
+      <p class="note">Source : production annuelle calculée à partir des données d'Elia (TWh).</p>
+    </div>
+  </section>
+
+  <section class="chapter" data-cam="overview" data-focus="city" data-v="230,150000" data-what="des usines aux maisons">
+    <div class="panel">
+      <h2><svg class="sym"><use href="#s-meter"/></svg>Qui consomme l'électricité ?</h2>
+      <p>Les ménages n'utilisent qu'un cinquième de l'électricité belge. La première consommatrice, c'est l'industrie : la chimie du port d'Anvers, la sidérurgie, l'agroalimentaire… Viennent ensuite les commerces, les bureaux et les services publics.</p>
+      <ul class="bill" id="sectors"></ul>
+      <p class="note">Source : Eurostat, consommation finale d'électricité de la Belgique en 2024 (77 TWh).</p>
+      <p class="vnote"><b>230 V à 150 kV</b> Les maisons sont branchées en basse tension, les grandes usines directement en haute tension.</p>
+    </div>
+  </section>
+
+  <section class="chapter" data-cam="wide" data-focus="grid" data-v="30000,380000" data-what="réseau d'Elia" id="direct">
+    <div class="panel">
+      <h2><svg class="sym"><use href="#s-meter"/></svg>En ce moment</h2>
+      <p id="liveStatus" class="note" aria-live="polite">Chargement des données d'Elia…</p>
+      <p id="meteoTxt" class="note">Chargement de la météo…</p>
+      <div class="live" id="live" hidden>
+        <dl class="figs">
+          <div><dt id="liveLoad">–</dt><dd>consommés en Belgique en ce moment</dd></div>
+          <div><dt id="liveGen">–</dt><dd>produits en Belgique à la dernière donnée publiée</dd></div>
+          <div><dt id="liveCo2">–</dt><dd id="liveCo2Txt">de CO₂ par kWh consommé</dd></div>
+        </dl>
+        <p class="sub">Qui produit ? <span class="note" id="liveMixTime"></span></p>
+        <div class="mix" id="liveMix" role="img"></div>
+        <ul class="legend" id="liveLegend"></ul>
+        <p class="sub">Aux frontières</p>
+        <ul class="borders" id="liveBorders"></ul>
+        <p class="sub">Sur la carte</p>
+        <p class="note">Le fond prend la couleur du ciel : bleu quand il est dégagé, blanc quand il est couvert, un mélange des deux quand il est partiellement nuageux, sombre la nuit. Le halo en haut à droite est le soleil : jaune quand il est faible, orangé quand il tape fort. Les nuages au-dessus de la carte suivent la couverture nuageuse. Les barbules en fond montrent le vent moyen sur le pays. Elles glissent dans le sens du vent, d'autant plus vite qu'il souffle fort : le trait pointe d'où vient le vent, une grande barbe vaut 10 nœuds (environ 18 km/h), une petite 5 nœuds, un cercle signale le calme.</p>
+        <p class="note">1 MW, c'est à peu près 400 bouilloires allumées en même temps. Le CO₂ compte aussi le courant importé. En 2025, la moyenne était d'environ 120 g par kWh. Mise à jour toutes les 5 minutes.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="chapter" data-cam="wide" data-focus="grid" data-v="30000,380000" data-what="réseau d'Elia" id="jour">
+    <div class="panel">
+      <h2><svg class="sym"><use href="#s-meter"/></svg>Aujourd'hui et demain</h2>
+      <p>La consommation suit notre rythme de vie : elle baisse la nuit et grimpe le matin, puis encore le soir. Le soleil et le vent, eux, suivent la météo. Elia prévoit les trois pour garder le réseau en équilibre.</p>
+      <p id="dayStatus" class="note" aria-live="polite">Chargement des données d'Elia…</p>
+      <figure class="chart" id="dayChart" hidden>
+        <svg id="daySvg" viewBox="0 0 600 300" role="img" aria-label="Consommation, production solaire et éolienne aujourd'hui et demain"></svg>
+        <figcaption class="keys">
+          <span style="--c:var(--ink)">Consommation</span>
+          <span style="--c:var(--sun)">Solaire</span>
+          <span style="--c:var(--wind)">Éolien</span>
+        </figcaption>
+      </figure>
+      <p class="note">À gauche du trait vertical : ce qui a été mesuré. À droite : les prévisions d'Elia.</p>
+    </div>
+  </section>
+
+  <section class="chapter" data-cam="nuclear" data-focus="nuc" data-v="380000" data-what="raccordement de Doel et Tihange">
+    <div class="panel">
+      <h2><svg class="sym"><use href="#s-gen"/></svg>Doel et Tihange</h2>
+      <p>Deux centrales nucléaires, au bord de l'Escaut et de la Meuse. Pendant des décennies, leurs sept réacteurs ont fourni environ la moitié du courant belge. Une loi de 2003 prévoyait de tous les arrêter : Doel 3, Tihange 2, Doel 1, Tihange 1 et Doel 2 sont aujourd'hui fermés.</p>
+      <p>Les deux derniers, <strong>Doel 4</strong> et <strong>Tihange 3</strong>, ont été prolongés jusqu'en 2035. En 2025, le Parlement a supprimé la loi de sortie du nucléaire. Le débat sur leur avenir reste ouvert.</p>
+      <p>En mai, juin et juillet 2026, le nucléaire n'a rien produit : les deux réacteurs restants étaient à l'arrêt.</p>
+      <dl class="figs">
+        <div><dt>33 %</dt><dd>de la production belge en 2025</dd></div>
+        <div><dt>2035</dt><dd>fin prévue de la prolongation</dd></div>
+      </dl>
+      <p class="vnote"><b>380 kV</b> Les grosses centrales envoient leur courant directement sur les lignes les plus puissantes du pays.</p>
+    </div>
+  </section>
+
+  <section class="chapter" data-cam="offshore" data-focus="wind" data-v="220000" data-what="câbles sous-marins">
+    <div class="panel">
+      <h2><svg class="sym"><use href="#s-gen"/></svg>Le vent de la mer du Nord</h2>
+      <p>Avec seulement 65 km de côte, la Belgique a construit l'un des parcs éoliens en mer les plus denses du monde : environ 400 éoliennes, entre 20 et 50 km au large.</p>
+      <p>Pour aller plus loin, Elia construit l'<strong>île Princesse Elisabeth</strong>. Cette île artificielle rassemblera le courant de nouveaux parcs et servira de carrefour vers le Royaume-Uni et le Danemark.</p>
+      <dl class="figs">
+        <div><dt>10 %</dt><dd>de la production belge en 2025 vient de l'éolien en mer</dd></div>
+        <div><dt>8 %</dt><dd>vient de l'éolien sur terre</dd></div>
+      </dl>
+      <p class="note">Sur la carte, chaque éolienne en représente une vraie : environ 400 en mer et 1 400 sur terre. Leur nombre est calculé à partir de la puissance installée publiée par Elia (2 262 MW en mer, 3 729 MW sur terre) ; leur emplacement exact est approximatif.</p>
+      <p class="vnote"><b>220 kV</b> C'est la tension des câbles sous-marins qui ramènent le courant jusqu'à la côte.</p>
+    </div>
+  </section>
+
+  <section class="chapter" data-cam="overview" data-focus="gas solar" data-v="230,150000" data-what="des toits aux centrales">
+    <div class="panel">
+      <h2><svg class="sym"><use href="#s-gen"/></svg>Le gaz qui s'allume, le soleil qui s'invite</h2>
+      <p>Les centrales au gaz démarrent en quelques minutes. Elles comblent les creux quand le vent tombe ou quand le soleil se couche.</p>
+      <p>Le solaire, lui, est partout, surtout sur les toits des maisons. Il a fourni 15 % de la production belge en 2025, presque tout entre avril et septembre.</p>
+      <p class="note">Sur la carte, chaque petit panneau bleu représente 25 MW : 485 panneaux pour les 12 128 MW de solaire installés en Belgique, répartis selon la puissance de chaque province (Elia). La Flandre en compte presque trois fois plus que la Wallonie.</p>
+      <p class="vnote"><b>230 V à 150 kV</b> Un panneau sur un toit injecte son courant en basse tension, une grande centrale au gaz en haute tension.</p>
+    </div>
+  </section>
+
+  <section class="chapter" data-cam="overview" data-focus="nuc gas wind coo" data-v="10000,380000" data-what="des centrales au réseau" id="proprietaires">
+    <div class="panel">
+      <h2><svg class="sym"><use href="#s-gen"/></svg>À qui appartiennent les centrales ?</h2>
+      <p>Sur la carte, les grandes centrales et les parcs en mer ont la couleur de leur propriétaire principal. Beaucoup appartiennent à plusieurs sociétés à la fois.</p>
+      <ul class="owners">
+        <li style="--c:var(--own-engie)"><b>Engie Electrabel</b><small>Doel, Tihange, Coo, les centrales au gaz d'Amercœur et de Drogenbos, quatre petites centrales hydrauliques (Bévercé, Bütgenbach, Heid-de-Goreux, La Vierre) et 17,5 % de SeaMade. C'est aussi un fournisseur.</small></li>
+        <li style="--c:var(--own-luminus)"><b>Luminus</b><small>Premier producteur d'éolien sur terre du pays : 314 éoliennes pour 847 MW. Aussi sept centrales hydrauliques sur la Meuse et la Sambre (Lixhe, Monsin, Ivoz-Ramet, Ampsin-Neuville, Andenne, Grands-Malades, Floriffoux) et les centrales au gaz de Seraing et de Ringvaart (Gand). C'est aussi un fournisseur.</small></li>
+        <li style="--c:var(--own-total)"><b>TotalEnergies</b><small>Centrale de pompage de Plate-Taille, aux lacs de l'Eau d'Heure (143 MW), reprise à l'origine par Lampiris. C'est aussi un fournisseur.</small></li>
+        <li style="--c:var(--own-parkwind)"><b>Parkwind</b><small>Parcs en mer Belwind, Northwind, Nobelwind et Northwester 2, avec des partenaires comme Sumitomo.</small></li>
+        <li style="--c:var(--own-otary)"><b>Otary</b><small>Rentel, et 70 % de SeaMade (avec Engie et Eneco). Otary regroupe des sociétés belges comme DEME, Aspiravi, Elicio et des investisseurs publics.</small></li>
+        <li style="--c:var(--own-norther)"><b>Norther</b><small>Détenu à parts égales par Elicio et Eneco. Eneco est aussi un fournisseur.</small></li>
+        <li style="--c:var(--own-cpower)"><b>C-Power</b><small>Premier grand parc belge en mer, détenu notamment par DEME, EDF, RWE et Nuhma.</small></li>
+        <li style="--c:#FFFFFF"><b>Les autres éoliennes sur terre et les panneaux solaires</b><small>Des milliers de propriétaires : ménages, coopératives, entreprises, communes. Ils restent en blanc et en bleu sur la carte.</small></li>
+      </ul>
+      <p class="note">Sources : sites des parcs et de leurs actionnaires, Luminus, liste Wikipédia des centrales électriques de Belgique. Les emplacements des parcs en mer sont approximatifs ; les éoliennes de Luminus sont réparties au hasard parmi celles sur terre (leur nombre est réel, pas leur place).</p>
+    </div>
+  </section>
+
+  <section class="chapter" data-cam="grid" data-focus="grid" data-v="30000,380000" data-what="réseau d'Elia">
+    <div class="panel">
+      <h2><svg class="sym"><use href="#s-trafo"/></svg>L'autoroute à 380 000 volts</h2>
+      <p><strong>Elia</strong> gère le réseau de transport : les grandes lignes à haute tension, environ 8 000 km de lignes et de câbles.</p>
+      <p>Son métier principal : garder à chaque seconde l'équilibre entre ce qui est produit et ce qui est consommé. Si l'équilibre se rompt, la fréquence du courant s'écarte de 50 Hz, et des réserves s'activent automatiquement.</p>
+      <dl class="chain">
+        <dt>380 kV</dt><dd>grands axes et liaisons avec l'étranger</dd>
+        <dt>220–150 kV</dt><dd>transport régional</dd>
+        <dt>70–30 kV</dt><dd>vers les postes de distribution</dd>
+      </dl>
+      <p class="vnote"><b>Pourquoi si haut ?</b> Plus la tension est haute, moins le courant perd d'énergie en chemin. C'est pour ça qu'on l'élève pour les longues distances.</p>
+    </div>
+  </section>
+
+  <section class="chapter" data-cam="wide" data-focus="inter" data-v="380000" data-what="lignes vers les voisins">
+    <div class="panel">
+      <h2><svg class="sym"><use href="#s-link"/></svg>Relié à cinq voisins</h2>
+      <p>La Belgique échange de l'électricité en permanence avec la France, les Pays-Bas, le Luxembourg, l'Allemagne et le Royaume-Uni. Le courant va dans un sens ou dans l'autre selon les prix et la météo.</p>
+      <dl class="figs">
+        <div><dt>Nemo Link</dt><dd>câble sous la mer vers le Royaume-Uni, depuis 2019</dd></div>
+        <div><dt>ALEGrO</dt><dd>premier lien direct avec l'Allemagne, depuis 2020</dd></div>
+      </dl>
+      <p>En juillet 2026, la Belgique a importé 2,8 TWh et en a exporté 0,6. Plus de la moitié des importations venaient de France.</p>
+      <p class="vnote"><b>380 kV</b> Les lignes vers les pays voisins sont les plus puissantes du réseau.</p>
+    </div>
+  </section>
+
+  <section class="chapter" data-cam="coo" data-focus="coo" data-v="150000,380000" data-what="haute tension">
+    <div class="panel">
+      <h2><svg class="sym"><use href="#s-store"/></svg>Coo, la batterie des Ardennes</h2>
+      <p>Quand il y a trop d'électricité, la centrale de Coo-Trois-Ponts pompe l'eau de l'Amblève vers deux bassins en hauteur. Quand la demande grimpe, l'eau redescend et fait tourner des turbines.</p>
+      <p>C'est la plus grande installation de stockage du pays : elle peut démarrer en quelques minutes et produire pendant plusieurs heures. La centrale de Plate-Taille, aux lacs de l'Eau d'Heure, fonctionne sur le même principe, en plus petit (143 MW).</p>
+      <p>La Belgique compte aussi une dizaine de petites centrales hydrauliques au fil de l'eau, surtout sur la Meuse. Ensemble, elles fournissent moins de 1 % de la production du pays.</p>
+      <p class="vnote"><b>Haute tension</b> Comme une centrale, Coo est reliée directement au réseau de transport.</p>
+    </div>
+  </section>
+
+  <section class="chapter" data-cam="city" data-focus="dist" data-v="400,15000" data-what="réseau de quartier">
+    <div class="panel">
+      <h2><svg class="sym"><use href="#s-trafo"/></svg>Le dernier kilomètre</h2>
+      <p>Près des villes, des transformateurs abaissent la tension, puis des cabines de quartier la baissent encore. Ce réseau local est géré par une société qui dépend de votre région :</p>
+      <dl class="dso">
+        <div><dt>Fluvius</dt><dd>Flandre</dd></div>
+        <div><dt>ORES et RESA</dt><dd>Wallonie</dd></div>
+        <div><dt>Sibelga</dt><dd>Bruxelles</dd></div>
+      </dl>
+      <p class="note">Le gestionnaire de réseau ne vend pas l'électricité : il l'achemine et relève votre compteur. Vous choisissez librement votre fournisseur.</p>
+      <p class="vnote"><b>15 kV puis 400 V</b> Chaque transformateur fait descendre la tension d'une marche.</p>
+    </div>
+  </section>
+
+  <section class="chapter" data-cam="home" data-focus="dist city" data-v="230" data-what="votre prise">
+    <div class="panel">
+      <h2><svg class="sym"><use href="#s-meter"/></svg>Chez vous</h2>
+      <p>La consommation change beaucoup au cours d'une journée. Déplacez le curseur pour voir ce qui se passe sur le réseau.</p>
+      <div class="clock">
+        <label for="heure">Heure de la journée <output id="heureTxt" class="n">12:00</output></label>
+        <input id="heure" type="range" min="0" max="24" step="0.25" value="12">
+        <p id="statut" aria-live="polite"></p>
+      </div>
+      <p class="vnote"><b>230 V · 50 Hz</b> À votre prise, le courant change de sens 100 fois par seconde : c'est un courant alternatif.</p>
+    </div>
+  </section>
+
+  <section class="chapter" data-cam="home" data-focus="city" data-v="230" data-what="votre prise">
+    <div class="panel">
+      <h2><svg class="sym"><use href="#s-meter"/></svg>Le prix sur le marché</h2>
+      <p>Les fournisseurs achètent une partie de leur électricité en bourse, la veille pour le lendemain. En juillet 2026, le prix moyen y était de 109 € par MWh, soit environ 11 centimes par kWh. Au bout du compte, un ménage paie environ 39 centimes par kWh, taxes et réseau compris.</p>
+      <dl class="figs">
+        <div><dt>90 €/MWh</dt><dd>en journée, de 8 h à 20 h en semaine</dd></div>
+        <div><dt>121 €/MWh</dt><dd>la nuit et le week-end</dd></div>
+      </dl>
+      <p>Étonnant : le courant était moins cher en journée. C'est l'effet du soleil. Vers midi, les panneaux produisent tellement que le prix chute, et il devient parfois négatif : certains producteurs paient alors pour injecter leur courant.</p>
+      <p class="note">Source : CREG, tableau de bord d'août 2026 (prix Belpex pour le lendemain, moyennes de juillet 2026).</p>
+    </div>
+  </section>
+
+  <section class="chapter" data-cam="home" data-focus="city" data-v="230" data-what="votre prise">
+    <div class="panel">
+      <h2><svg class="sym"><use href="#s-meter"/></svg>Votre facture</h2>
+      <p>Un ménage moyen consomme 3 500 kWh par an. En août 2026, il payait en moyenne <strong class="n" id="billTotal">1 350 €</strong> par an. Où va cet argent ?</p>
+      <div class="seg" role="group" aria-label="Choisir une région">
+        <button type="button" data-r="BE" aria-pressed="true">Belgique</button>
+        <button type="button" data-r="VL" aria-pressed="false">Flandre</button>
+        <button type="button" data-r="BR" aria-pressed="false">Bruxelles</button>
+        <button type="button" data-r="WAL" aria-pressed="false">Wallonie</button>
+      </div>
+      <ul class="bill" id="bill"></ul>
+      <p>Pour comparer, le même ménage payait environ 1 365 € en Allemagne, 1 275 € au Royaume-Uni, 897 € en France et 893 € aux Pays-Bas.</p>
+      <p class="note">Source : CREG, tableau de bord mensuel d'août 2026, prix moyen d'un contrat mono-horaire.</p>
+    </div>
+  </section>
+
+  <section class="chapter" data-cam="home" data-focus="city" data-v="230" data-what="votre prise" id="calcul">
+    <div class="panel">
+      <h2><svg class="sym"><use href="#s-meter"/></svg>Combien consomme votre maison ?</h2>
+      <p>Un appareil a une <strong>puissance</strong>, en watts (W) : c'est ce qu'il tire du réseau quand il fonctionne. Multipliez-la par la durée d'utilisation et vous obtenez l'<strong>énergie</strong> consommée, en kilowattheures (kWh). C'est elle que vous payez. Une télé de 100 W allumée pendant 3 heures consomme 0,3 kWh.</p>
+      <div class="calcPrice">
+        <label for="calcRegion">Région</label>
+        <select id="calcRegion">
+          <option value="BE">Moyenne belge</option>
+          <option value="VL">Flandre</option>
+          <option value="BR">Bruxelles</option>
+          <option value="WAL">Wallonie</option>
+        </select>
+        <label for="calcPrice">Prix par kWh</label>
+        <span><input id="calcPrice" type="number" min="0" step="0.1"> centimes</span>
+      </div>
+      <p class="note" id="calcPriceNote"></p>
+      <p>Cochez vos appareils et ajustez leur utilisation.</p>
+      <ul class="calc" id="calc"></ul>
+      <p class="calcTotal" aria-live="polite"><span>Votre total</span><strong class="n" id="calcKwh">–</strong><strong class="n" id="calcEur">–</strong></p>
+      <p class="note">Estimations typiques, à adapter à vos appareils. Pour comparer, un ménage moyen consomme 3 500 kWh par an. Les petits appareils et les veilles ne sont pas comptés.</p>
+    </div>
+  </section>
+
+  <section class="chapter" data-cam="home" data-focus="city" data-v="230" data-what="votre prise">
+    <div class="panel">
+      <h2><svg class="sym"><use href="#s-meter"/></svg>Consommer au bon moment</h2>
+      <p>Sans rien changer à votre confort, vous pouvez aider le réseau, et parfois votre portefeuille.</p>
+      <ul class="tips">
+        <li><b>Évitez la pointe du soir.</b> Entre 17 h et 20 h environ, tout le monde cuisine et rentre chez soi. Lancez plutôt le lave-linge, le lave-vaisselle ou la recharge de la voiture plus tard, ou pendant la journée.</li>
+        <li><b>Avec des panneaux solaires, consommez à midi.</b> Vous utilisez votre propre courant au lieu de l'envoyer sur le réseau puis de le racheter plus cher le soir.</li>
+        <li><b>Regardez les contrats dynamiques.</b> Avec un compteur digital, certains fournisseurs proposent un prix qui change chaque heure, selon le marché. On paie moins aux heures creuses, mais plus pendant la pointe.</li>
+      </ul>
+      <p class="note">La courbe « Aujourd'hui et demain », plus haut, montre les heures où le soleil et le vent produisent le plus.</p>
+    </div>
+  </section>
+
+  <section class="chapter" data-cam="overview" data-focus="grid dist" data-v="230,380000" data-what="tout le réseau" id="acteurs">
+    <div class="panel">
+      <h2><svg class="sym"><use href="#s-link"/></svg>Qui fait quoi ?</h2>
+      <p>De la centrale à la prise, chaque étape a ses responsables. Les réseaux sont des monopoles régulés : vous ne choisissez pas votre gestionnaire de réseau, il dépend de votre adresse. Vous choisissez en revanche votre fournisseur, parmi de nombreuses sociétés comme Engie, Luminus, TotalEnergies, Eneco, Mega ou Bolt.</p>
+      <p class="sub">Le réseau à haute tension</p>
+      <ul class="actors">
+          <li><span class="logo"><img src="logos/elia.svg" alt="" onerror="this.src.endsWith('.svg') ? this.src = this.src.replace(/\.svg$/, '.png') : this.remove()"><b>Elia</b></span><small>gère le réseau de transport (30 à 380 kV), l'équilibre à chaque seconde, les liaisons avec l'étranger et l'île Princesse Elisabeth</small></li>
+      </ul>
+      <p class="sub">Les réseaux locaux</p>
+      <ul class="actors">
+          <li><span class="logo"><img src="logos/fluvius.svg" alt="" onerror="this.src.endsWith('.svg') ? this.src = this.src.replace(/\.svg$/, '.png') : this.remove()"><b>Fluvius</b></span><small>gestionnaire du réseau de distribution en Flandre</small></li>
+          <li><span class="logo"><img src="logos/ores.svg" alt="" onerror="this.src.endsWith('.svg') ? this.src = this.src.replace(/\.svg$/, '.png') : this.remove()"><b>ORES</b></span><small>gestionnaire du réseau de distribution dans la majorité des communes wallonnes</small></li>
+          <li><span class="logo"><img src="logos/resa.svg" alt="" onerror="this.src.endsWith('.svg') ? this.src = this.src.replace(/\.svg$/, '.png') : this.remove()"><b>RESA</b></span><small>gestionnaire du réseau de distribution dans une grande partie de la province de Liège</small></li>
+          <li><span class="logo"><img src="logos/sibelga.svg" alt="" onerror="this.src.endsWith('.svg') ? this.src = this.src.replace(/\.svg$/, '.png') : this.remove()"><b>Sibelga</b></span><small>gestionnaire du réseau de distribution à Bruxelles</small></li>
+          <li><span class="logo"><img src="logos/synergrid.svg" alt="" onerror="this.src.endsWith('.svg') ? this.src = this.src.replace(/\.svg$/, '.png') : this.remove()"><b>Synergrid</b></span><small>fédération des gestionnaires de réseaux d'électricité et de gaz</small></li>
+      </ul>
+      <p class="sub">Les producteurs</p>
+      <ul class="actors">
+          <li><span class="logo"><img src="logos/engie.svg" alt="" onerror="this.src.endsWith('.svg') ? this.src = this.src.replace(/\.svg$/, '.png') : this.remove()"><b>Engie Electrabel</b></span><small>exploite les centrales nucléaires de Doel et Tihange, la centrale de Coo et des centrales au gaz</small></li>
+          <li><span class="logo"><img src="logos/luminus.svg" alt="" onerror="this.src.endsWith('.svg') ? this.src = this.src.replace(/\.svg$/, '.png') : this.remove()"><b>Luminus</b></span><small>centrales au gaz, éoliennes et centrales hydrauliques sur la Meuse</small></li>
+          <li><span class="logo"><img src="logos/parkwind.svg" alt="" onerror="this.src.endsWith('.svg') ? this.src = this.src.replace(/\.svg$/, '.png') : this.remove()"><b>Parkwind</b></span><small>développe et exploite plusieurs parcs éoliens en mer du Nord</small></li>
+          <li><span class="logo"><img src="logos/otary.svg" alt="" onerror="this.src.endsWith('.svg') ? this.src = this.src.replace(/\.svg$/, '.png') : this.remove()"><b>Otary</b></span><small>groupe d'entreprises derrière plusieurs parcs éoliens en mer</small></li>
+      </ul>
+      <p class="sub">Les régulateurs et le contrôle</p>
+      <ul class="actors">
+          <li><span class="logo"><img src="logos/creg.svg" alt="" onerror="this.src.endsWith('.svg') ? this.src = this.src.replace(/\.svg$/, '.png') : this.remove()"><b>CREG</b></span><small>régulateur fédéral : réseau de transport, marché de gros, suivi des prix</small></li>
+          <li><span class="logo"><img src="logos/vnr.svg" alt="" onerror="this.src.endsWith('.svg') ? this.src = this.src.replace(/\.svg$/, '.png') : this.remove()"><b>Vlaamse Nutsregulator</b></span><small>régulateur flamand : tarifs de distribution, comparateur V-test</small></li>
+          <li><span class="logo"><img src="logos/cwape.svg" alt="" onerror="this.src.endsWith('.svg') ? this.src = this.src.replace(/\.svg$/, '.png') : this.remove()"><b>CWaPE</b></span><small>régulateur wallon : tarifs de distribution, comparateur CompaCWaPE</small></li>
+          <li><span class="logo"><img src="logos/brugel.svg" alt="" onerror="this.src.endsWith('.svg') ? this.src = this.src.replace(/\.svg$/, '.png') : this.remove()"><b>Brugel</b></span><small>régulateur bruxellois : tarifs de distribution, comparateur Brusim</small></li>
+          <li><span class="logo"><img src="logos/afcn.svg" alt="" onerror="this.src.endsWith('.svg') ? this.src = this.src.replace(/\.svg$/, '.png') : this.remove()"><b>AFCN</b></span><small>Agence fédérale de contrôle nucléaire : sûreté des centrales nucléaires</small></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="chapter" data-cam="city" data-focus="dist" data-v="230" data-what="votre prise" id="fournisseurs">
+    <div class="panel">
+      <h2><svg class="sym"><use href="#s-meter"/></svg>Tous les fournisseurs, région par région</h2>
+      <p>Pour vendre de l'électricité, une société a besoin d'une licence de la région. Beaucoup n'en vendent qu'aux entreprises. En jaune, celles qui proposent des contrats aux ménages.</p>
+      <div class="region">
+        <h3>Wallonie</h3>
+        <ul class="chips" id="supWAL"></ul>
+        <details><summary id="supWALn">Tous les titulaires d'une licence</summary><p id="supWALall"></p></details>
+      </div>
+      <div class="region">
+        <h3>Bruxelles</h3>
+        <ul class="chips" id="supBR"></ul>
+        <details><summary id="supBRn">Tous les titulaires d'une licence</summary><p id="supBRall"></p></details>
+      </div>
+      <div class="region">
+        <h3>Flandre</h3>
+        <p class="note">La liste du régulateur flamand ne précise pas qui sert les ménages. Le comparateur officiel V-test montre les offres pour particuliers.</p>
+        <details open><summary id="supVLn">Tous les titulaires d'une licence</summary><p id="supVLall"></p></details>
+      </div>
+      <p class="note">Sources : listes officielles de la CWaPE, de Brugel et de la Vlaamse Nutsregulator (liste du 11 juin 2026), consultées le 24 septembre 2026. Pour comparer les offres : CompaCWaPE, Brusim et V-test.</p>
+    </div>
+  </section>
+
+  <footer class="chapter end" data-cam="overview" data-focus="" data-v="230" data-what="votre prise">
+    <div class="panel">
+      <h2>Pour aller plus loin</h2>
+      <p>La production, la consommation et les échanges viennent des données ouvertes d'<a href="https://opendata.elia.be" target="_blank" rel="noopener">Elia</a>. Les prix viennent de la <a href="https://www.creg.be" target="_blank" rel="noopener">CREG</a>, le régulateur fédéral de l'énergie. La météo vient d'<a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a> (données sous licence CC BY 4.0).</p>
+      <p class="note" id="noWebgl" hidden>La carte 3D n'a pas pu démarrer sur cet appareil. Le texte reste complet.</p>
+    </div>
+  </footer>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="script.js"></script>
+<script src="data.js"></script>

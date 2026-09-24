@@ -1,0 +1,6 @@
+# réglages locaux de Claude Code
+.claude/
+# logos de marques : ajoutés seulement après vérification des droits d'utilisation
+logos/*.svg
+logos/*.png
+.DS_Store
