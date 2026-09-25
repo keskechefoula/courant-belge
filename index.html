@@ -1,568 +1,1320 @@
 <!doctype html>
 <html lang="fr">
+<head>
 <meta charset="utf-8">
-<title>Le courant belge</title>
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;1,400&display=swap">
-<link rel="stylesheet" href="style.css">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>L'énergie</title>
+<style>
+  @font-face { font-family: "Alfphabet"; src: url(fonts/Alfphabet-I.otf) format("opentype"); font-display: swap; }
+  @font-face { font-family: "Vevey Positive"; src: url(fonts/Vevey-Positive.otf) format("opentype"); font-display: swap; }
+  @font-face { font-family: "Vevey HumanKind"; src: url(fonts/Vevey-HumanKind.otf) format("opentype"); font-display: swap; }
+  /* colours are CAD layers: each one means something */
+  :root {
+    --calque: #f2f4f3; --encre: #1b2430; --cote: #5e6b74; --courant: #1f4fd8;
+    --title: "Vevey HumanKind", system-ui, sans-serif; --display: "Vevey Positive", system-ui, sans-serif;
+    --ui: "Alfphabet", system-ui, sans-serif; --prose: "Alfphabet", system-ui, sans-serif;
+  }
+  * { margin: 0; box-sizing: border-box; }
+  body {
+    color: var(--encre); cursor: crosshair; font-family: var(--ui);
+    background: var(--calque);
+  }
+  canvas { position: fixed; inset: 0; z-index: 0; }
+  #tags { position: fixed; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
+  #fade { position: fixed; inset: 0; z-index: 2; background: var(--calque); opacity: 0; pointer-events: none; }
+  /* drawing-sheet frame */
+  body::after { content: ''; position: fixed; inset: 12px; z-index: 5; border: 1px solid var(--encre); pointer-events: none; }
+  main {
+    position: fixed; inset: 0; z-index: 3; pointer-events: none;
+    display: grid; place-content: center; justify-items: center; gap: 1.2rem; text-align: center; padding: clamp(28px, 4vw, 56px);
+  }
+  h1 { font: 400 clamp(2.4rem, 8.5vw, 8.5rem)/1 var(--title); letter-spacing: -.01em; white-space: nowrap; color: var(--encre); }
+  h1 { animation: fadein 2.4s ease-out both; }
+  .sub { font: 400 clamp(1.1rem, 2.2vw, 1.8rem)/1.3 var(--display); animation: fadein 2.4s ease-out .8s both; }
+  @keyframes fadein { from { opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { h1 { animation: none; } }
 
-<!-- Symboles de schéma électrique (norme IEC 60617, simplifiés) -->
-<svg width="0" height="0" style="position:absolute" aria-hidden="true">
-  <symbol id="s-gen" viewBox="0 0 48 48"><circle cx="24" cy="24" r="17"/><path d="M13 24c3.5-7 7.5-7 11 0s7.5 7 11 0"/></symbol>
-  <symbol id="s-trafo" viewBox="0 0 48 48"><circle cx="18" cy="24" r="12"/><circle cx="30" cy="24" r="12"/></symbol>
-  <symbol id="s-link" viewBox="0 0 48 48"><path d="M4 18h36l-6-6M44 30H8l6 6"/></symbol>
-  <symbol id="s-store" viewBox="0 0 48 48"><path d="M4 24h14M30 24h14M18 12v24M30 18v12"/></symbol>
-  <symbol id="s-meter" viewBox="0 0 48 48"><circle cx="24" cy="24" r="17"/><text x="24" y="29" text-anchor="middle" font-size="13" font-family="IBM Plex Mono, monospace" font-weight="500" stroke="none" fill="currentColor">kWh</text></symbol>
-</svg>
-
-<div id="wind" aria-hidden="true"></div>
-<canvas id="scene" aria-hidden="true"></canvas>
-
-<button type="button" id="explore" class="explore">Explorer la carte</button>
-<div class="cartouche" aria-hidden="true">
-  <span class="k">Projet</span><span>Le courant belge</span>
-  <span class="k">Planche</span><span id="cartTitle">Introduction</span>
-  <span class="k">Échelle</span><span>non à l'échelle</span>
-  <span class="k">Sources</span><span>Elia, Eurostat, CREG</span>
-</div>
-<div id="exploreBar" class="exploreBar" role="toolbar" aria-label="Explorer la carte">
-  <p>Glissez pour tourner, molette ou pincement pour zoomer, clic droit ou deux doigts pour déplacer.</p>
-  <div class="spots"></div>
-  <button type="button" id="exploreClose" class="close">Retour au récit</button>
-</div>
-
-<aside class="meter" aria-label="Tension du courant à cette étape">
-  <p class="mtitle">Tension ici</p>
-  <div class="scale">
-    <span style="--p:.1">230 V</span>
-    <span style="--p:.278">1 kV</span>
-    <span style="--p:.556">10 kV</span>
-    <span style="--p:.833">100 kV</span>
-    <span style="--p:.994">380 kV</span>
-    <i class="band"></i>
-  </div>
-  <p class="read"><output id="volt">230 V</output><span id="voltWhat">votre prise</span></p>
-</aside>
-
-<main class="story">
-  <section class="chapter hero" data-cam="hero" data-focus="" data-v="230" data-what="votre prise">
-    <div class="panel">
-      <h1><span>Le</span> <span>courant</span> <span>belge</span></h1>
-      <p class="lede">Quand vous allumez une lampe, un réseau de plusieurs milliers de kilomètres s'ajuste à la seconde près. Mais l'électricité n'est qu'une partie de l'énergie que nous utilisons. Faites défiler la page pour comprendre tout le secteur.</p>
-      <p class="lede">Le site suit le plan de l'article Wikipédia « Énergie en Belgique », en neuf parties : de la vue d'ensemble jusqu'aux acteurs du marché.</p>
-    </div>
-  </section>
-
-  <div class="part" id="partie-1">
-    <p class="part-n">Planche 1 / 9</p>
-    <h2 class="part-t">Vue d'ensemble</h2>
-    <p class="part-d">Les grands chiffres de l'énergie belge, pour situer tout le reste.</p>
-  </div>
-
-  <section class="chapter" data-cam="wide" data-focus="" id="chiffres">
-    <div class="panel">
-      <h2><svg class="sym"><use href="#s-meter"/></svg>Les chiffres clés</h2>
-      <dl class="figs">
-        <div><dt>50 Mtep</dt><dd>d'énergie primaire consommée en 2024, avant toute transformation</dd></div>
-        <div><dt>75 %</dt><dd>de cette énergie est importée : pétrole, gaz, uranium</dd></div>
-        <div><dt>31 Mtep</dt><dd>d'énergie finale utilisée par les consommateurs</dd></div>
-        <div><dt>80 TWh</dt><dd>d'électricité consommée en 2025</dd></div>
-        <div><dt>98 Mt</dt><dd>de gaz à effet de serre émis en 2024, en équivalent CO₂</dd></div>
-      </dl>
-      <p class="note">1 Mtep = un million de tonnes équivalent pétrole, environ 11,6 TWh. Sources : Eurostat (bilan énergétique et émissions 2024), Elia (électricité 2025).</p>
-    </div>
-  </section>
-
-
-  <div class="part" id="partie-2">
-    <p class="part-n">Planche 2 / 9</p>
-    <h2 class="part-t">Historique</h2>
-    <p class="part-d">Cinquante ans de choix énergétiques, du nucléaire à l'éolien en mer.</p>
-  </div>
-
-  <section class="chapter" data-cam="nuclear" data-focus="nuc" id="histoire">
-    <div class="panel">
-      <h2><svg class="sym"><use href="#s-meter"/></svg>Les grandes dates</h2>
-      <ol class="timeline">
-        <li><b>1975</b> Mise en service des premiers réacteurs nucléaires commerciaux : Doel 1, Doel 2 et Tihange 1.</li>
-        <li><b>1985</b> Doel 4 et Tihange 3, les deux derniers réacteurs encore autorisés aujourd'hui, démarrent.</li>
-        <li><b>1990</b> Plusieurs producteurs fusionnent pour former Electrabel, qui domine alors le marché.</li>
-        <li><b>2003</b> La loi de sortie du nucléaire est votée. En Flandre, les ménages peuvent choisir leur fournisseur.</li>
-        <li><b>2007</b> Le marché s'ouvre aussi en Wallonie et à Bruxelles.</li>
-        <li><b>2009</b> Premières éoliennes en mer du Nord belge, sur le banc de Thornton.</li>
-        <li><b>2014</b> Plusieurs réacteurs à l'arrêt : un plan de délestage est préparé pour l'hiver.</li>
-        <li><b>2019–2020</b> Nouvelles liaisons directes avec le Royaume-Uni (Nemo Link) et l'Allemagne (ALEGrO).</li>
-        <li><b>2022</b> Crise des prix de l'énergie en Europe. Doel 3 ferme.</li>
-        <li><b>2025</b> Le Parlement abroge la loi de sortie du nucléaire. Doel 1, Tihange 1 et Doel 2 ferment.</li>
-        <li><b>2035</b> Fin prévue de la prolongation de Doel 4 et Tihange 3.</li>
-      </ol>
-    </div>
-  </section>
-
-
-  <div class="part" id="partie-3">
-    <p class="part-n">Planche 3 / 9</p>
-    <h2 class="part-t">Politique énergétique</h2>
-    <p class="part-d">Qui décide quoi : l'Europe, l'État fédéral et les trois régions.</p>
-  </div>
-
-  <section class="chapter" data-cam="plan" data-focus="" id="politique">
-    <div class="panel">
-      <h2><svg class="sym"><use href="#s-meter"/></svg>Qui décide ?</h2>
-      <p>En Belgique, l'énergie est partagée entre plusieurs niveaux de pouvoir. C'est une des raisons pour lesquelles les règles et les prix changent d'une région à l'autre.</p>
-      <dl class="chain">
-        <dt>Europe</dt><dd>règles du marché intérieur, objectifs climatiques communs</dd>
-        <dt>Fédéral</dt><dd>nucléaire, éolien en mer, réseau de transport, sécurité d'approvisionnement, TVA, tarif social</dd>
-        <dt>Régions</dt><dd>réseaux de distribution, énergies renouvelables sur terre et leurs aides, économies d'énergie, primes à la rénovation</dd>
-      </dl>
-      <p>Pour éviter les pénuries après la fermeture des réacteurs, l'État a créé un <strong>mécanisme de rémunération de capacité</strong> : Elia organise des enchères qui paient des centrales, des batteries ou des gros consommateurs flexibles pour être disponibles quand il le faut.</p>
-      <p>Ces choix s'inscrivent dans un <strong>plan national énergie-climat</strong>, qui fixe les objectifs de la Belgique pour 2030.</p>
-    </div>
-  </section>
-
-
-  <div class="part" id="partie-4">
-    <p class="part-n">Planche 4 / 9</p>
-    <h2 class="part-t">Émissions de gaz à effet de serre</h2>
-    <p class="part-d">Ce que l'énergie coûte au climat, et comment ça évolue.</p>
-  </div>
-
-  <section class="chapter" data-cam="port" data-focus="" id="emissions">
-    <div class="panel">
-      <h2><svg class="sym"><use href="#s-meter"/></svg>D'où viennent nos émissions ?</h2>
-      <p>La Belgique a émis 98 millions de tonnes d'équivalent CO₂ en 2024, un tiers de moins qu'en 1990. La production d'électricité a beaucoup baissé ; les transports, eux, émettent plus qu'en 1990.</p>
-      <dl class="figs">
-        <div><dt>145 Mt</dt><dd>en 1990</dd></div>
-        <div><dt>98 Mt</dt><dd>en 2024, soit −33 %</dd></div>
-      </dl>
-      <ul class="bill" id="ghg"></ul>
-      <p class="note">Source : Eurostat, inventaire des émissions de gaz à effet de serre (hors forêts et sols), 2024. Pour l'électricité en direct, voir le CO₂ par kWh dans la partie 7.</p>
-    </div>
-  </section>
-
-
-  <div class="part" id="partie-5">
-    <p class="part-n">Planche 5 / 9</p>
-    <h2 class="part-t">Énergie primaire</h2>
-    <p class="part-d">L'énergie telle qu'on la trouve avant de la transformer : pétrole brut, gaz, uranium, vent, soleil.</p>
-  </div>
-
-  <section class="chapter" data-cam="port" data-focus="nuc" id="primaire">
-    <div class="panel">
-      <h2><svg class="sym"><use href="#s-meter"/></svg>Surtout importée</h2>
-      <p>L'énergie primaire, c'est l'énergie avant transformation. La Belgique n'a ni pétrole, ni gaz, ni charbon exploités : elle importe environ les trois quarts de ce qu'elle consomme. Ce qu'elle produit elle-même vient surtout du nucléaire et des renouvelables.</p>
-      <div class="mix" id="mixPrimary" role="img"></div>
-      <ul class="legend" id="legendPrimary"></ul>
-      <p>Le port d'Anvers abrite l'un des plus grands pôles de raffinage et de chimie d'Europe : une grande partie du pétrole importé est raffinée puis réexportée.</p>
-      <p class="note">Source : Eurostat, consommation intérieure brute 2024 (50 Mtep). L'uranium du nucléaire est lui aussi importé.</p>
-    </div>
-  </section>
-
-  <section class="chapter" data-cam="lng" data-focus="" id="gaz">
-    <div class="panel">
-      <h2><svg class="sym"><use href="#s-meter"/></svg>D'où vient notre gaz ?</h2>
-      <p>Le gaz arrive par gazoducs, surtout depuis la Norvège, et par méthaniers au terminal de Zeebrugge. <strong>Fluxys</strong> gère le transport du gaz en Belgique, comme Elia pour l'électricité. Une partie du gaz ne fait que traverser le pays vers les voisins.</p>
-      <ul class="bill" id="gasOrigin"></ul>
-      <p class="note">Source : Eurostat, importations de gaz naturel de la Belgique en 2024 par pays d'origine (millions de m³), transit compris.</p>
-    </div>
-  </section>
-
-
-  <div class="part" id="partie-6">
-    <p class="part-n">Planche 6 / 9</p>
-    <h2 class="part-t">Consommation finale d'énergie</h2>
-    <p class="part-d">L'énergie qui arrive chez les utilisateurs : carburants, gaz, électricité, chaleur.</p>
-  </div>
-
-  <section class="chapter" data-cam="overview" data-focus="" data-v="230" data-what="votre prise">
-    <div class="panel">
-      <h2><svg class="sym"><use href="#s-meter"/></svg>L'électricité, un cinquième de l'énergie</h2>
-      <p>Quand on parle d'énergie, on pense souvent à l'électricité. Pourtant, elle ne représente qu'environ un cinquième de toute l'énergie consommée en Belgique. Le reste, ce sont surtout des carburants pour les transports, du mazout et du gaz pour le chauffage et l'industrie.</p>
-      <div class="mix" id="mixEnergy" role="img"></div>
-      <ul class="legend" id="legendEnergy"></ul>
-      <p>C'est pour ça qu'on parle d'« électrifier » : remplacer les voitures à essence et les chaudières par des modèles électriques. Moins de pétrole et de gaz, mais plus d'électricité à produire et à transporter.</p>
-      <p class="note">Source : Eurostat, bilan énergétique de la Belgique 2024, consommation finale d'énergie.</p>
-    </div>
-  </section>
-  <section class="chapter" data-cam="city" data-focus="city" id="secteurs">
-    <div class="panel">
-      <h2><svg class="sym"><use href="#s-meter"/></svg>Qui consomme l'énergie ?</h2>
-      <p>L'industrie reste la première consommatrice d'énergie, devant les transports et les ménages.</p>
-      <ul class="bill" id="energySectors"></ul>
-      <p class="note">Source : Eurostat, consommation finale d'énergie 2024 (31 Mtep, hors usages non énergétiques comme les matières premières de la chimie).</p>
-    </div>
-  </section>
-
-
-  <div class="part" id="partie-7">
-    <p class="part-n">Planche 7 / 9</p>
-    <h2 class="part-t">Électricité</h2>
-    <p class="part-d">De la centrale à votre prise. Suivez le voltmètre : la tension monte pour voyager loin, puis redescend avant d'arriver chez vous.</p>
-  </div>
-
-  <section class="chapter" data-cam="overview" data-focus="nuc gas wind solar" data-v="10000,25000" data-what="sortie des centrales">
-    <div class="panel">
-      <h2><svg class="sym"><use href="#s-gen"/></svg>Qui produit notre électricité ?</h2>
-      <p>En 2025, la Belgique a consommé <strong class="n">80 TWh</strong> d'électricité et en a produit <strong class="n">69 TWh</strong>. La différence, environ un septième, a été importée des pays voisins.</p>
-      <div class="mix" id="mix2025" role="img"></div>
-      <ul class="legend" id="legend2025"></ul>
-      <p class="note">Source : données de production d'Elia pour 2025. 1 TWh = un milliard de kWh.</p>
-      <p class="vnote"><b>10–25 kV</b> C'est la tension que produisent les alternateurs des grandes centrales.</p>
-    </div>
-  </section>
-
-  <section class="chapter" data-cam="grid" data-focus="nuc solar" data-v="10000,25000" data-what="sortie des centrales" id="annees">
-    <div class="panel">
-      <h2><svg class="sym"><use href="#s-gen"/></svg>D'une année à l'autre</h2>
-      <p>En 2021, les centrales belges ont produit 93 TWh, dont la moitié venait du nucléaire. En 2025, elles n'en ont produit que 69 TWh : plusieurs réacteurs ont fermé, et la Belgique importe davantage. Pendant ce temps, le solaire a plus que doublé.</p>
-      <div class="years" id="years"></div>
-      <ul class="legend compact" id="yearsLegend"></ul>
-      <p class="note">Source : production annuelle calculée à partir des données d'Elia (TWh).</p>
-    </div>
-  </section>
-
-  <section class="chapter" data-cam="nuclear" data-focus="nuc" data-v="380000" data-what="raccordement de Doel et Tihange">
-    <div class="panel">
-      <h2><svg class="sym"><use href="#s-gen"/></svg>Doel et Tihange</h2>
-      <p>Deux centrales nucléaires, au bord de l'Escaut et de la Meuse. Pendant des décennies, leurs sept réacteurs ont fourni environ la moitié du courant belge. Une loi de 2003 prévoyait de tous les arrêter : Doel 3, Tihange 2, Doel 1, Tihange 1 et Doel 2 sont aujourd'hui fermés.</p>
-      <p>Les deux derniers, <strong>Doel 4</strong> et <strong>Tihange 3</strong>, ont été prolongés jusqu'en 2035. En 2025, le Parlement a supprimé la loi de sortie du nucléaire. Le débat sur leur avenir reste ouvert.</p>
-      <p>En mai, juin et juillet 2026, le nucléaire n'a rien produit : les deux réacteurs restants étaient à l'arrêt.</p>
-      <dl class="figs">
-        <div><dt>33 %</dt><dd>de la production belge en 2025</dd></div>
-        <div><dt>2035</dt><dd>fin prévue de la prolongation</dd></div>
-      </dl>
-      <p class="vnote"><b>380 kV</b> Les grosses centrales envoient leur courant directement sur les lignes les plus puissantes du pays.</p>
-    </div>
-  </section>
-
-  <section class="chapter" data-cam="offshore" data-focus="wind" data-v="220000" data-what="câbles sous-marins">
-    <div class="panel">
-      <h2><svg class="sym"><use href="#s-gen"/></svg>Le vent de la mer du Nord</h2>
-      <p>Avec seulement 65 km de côte, la Belgique a construit l'un des parcs éoliens en mer les plus denses du monde : environ 400 éoliennes, entre 20 et 50 km au large.</p>
-      <p>Pour aller plus loin, Elia construit l'<strong>île Princesse Elisabeth</strong>. Cette île artificielle rassemblera le courant de nouveaux parcs et servira de carrefour vers le Royaume-Uni et le Danemark.</p>
-      <dl class="figs">
-        <div><dt>10 %</dt><dd>de la production belge en 2025 vient de l'éolien en mer</dd></div>
-        <div><dt>8 %</dt><dd>vient de l'éolien sur terre</dd></div>
-      </dl>
-      <p class="note">Sur la carte, chaque éolienne en représente une vraie : environ 400 en mer et 1 400 sur terre. Leur nombre est calculé à partir de la puissance installée publiée par Elia (2 262 MW en mer, 3 729 MW sur terre) ; leur emplacement exact est approximatif.</p>
-      <p class="vnote"><b>220 kV</b> C'est la tension des câbles sous-marins qui ramènent le courant jusqu'à la côte.</p>
-    </div>
-  </section>
-
-  <section class="chapter" data-cam="solar" data-focus="gas solar" data-v="230,150000" data-what="des toits aux centrales">
-    <div class="panel">
-      <h2><svg class="sym"><use href="#s-gen"/></svg>Le gaz qui s'allume, le soleil qui s'invite</h2>
-      <p>Les centrales au gaz démarrent en quelques minutes. Elles comblent les creux quand le vent tombe ou quand le soleil se couche.</p>
-      <p>Le solaire, lui, est partout, surtout sur les toits des maisons. Il a fourni 15 % de la production belge en 2025, presque tout entre avril et septembre.</p>
-      <p class="note">Sur la carte, chaque petit panneau bleu représente 25 MW : 485 panneaux pour les 12 128 MW de solaire installés en Belgique, répartis selon la puissance de chaque province (Elia). La Flandre en compte presque trois fois plus que la Wallonie.</p>
-      <p class="vnote"><b>230 V à 150 kV</b> Un panneau sur un toit injecte son courant en basse tension, une grande centrale au gaz en haute tension.</p>
-    </div>
-  </section>
-
-  <section class="chapter" data-cam="coo" data-focus="coo" data-v="150000,380000" data-what="haute tension">
-    <div class="panel">
-      <h2><svg class="sym"><use href="#s-store"/></svg>Coo, la batterie des Ardennes</h2>
-      <p>Quand il y a trop d'électricité, la centrale de Coo-Trois-Ponts pompe l'eau de l'Amblève vers deux bassins en hauteur. Quand la demande grimpe, l'eau redescend et fait tourner des turbines.</p>
-      <p>C'est la plus grande installation de stockage du pays : elle peut démarrer en quelques minutes et produire pendant plusieurs heures. La centrale de Plate-Taille, aux lacs de l'Eau d'Heure, fonctionne sur le même principe, en plus petit (143 MW).</p>
-      <p>La Belgique compte aussi une dizaine de petites centrales hydrauliques au fil de l'eau, surtout sur la Meuse. Ensemble, elles fournissent moins de 1 % de la production du pays.</p>
-      <p class="vnote"><b>Haute tension</b> Comme une centrale, Coo est reliée directement au réseau de transport.</p>
-    </div>
-  </section>
-
-  <section class="chapter" data-cam="overview" data-focus="nuc gas wind coo" data-v="10000,380000" data-what="des centrales au réseau" id="proprietaires">
-    <div class="panel">
-      <h2><svg class="sym"><use href="#s-gen"/></svg>À qui appartiennent les centrales ?</h2>
-      <p>Sur la carte, les grandes centrales et les parcs en mer ont la couleur de leur propriétaire principal. Beaucoup appartiennent à plusieurs sociétés à la fois.</p>
-      <ul class="owners">
-        <li style="--c:var(--own-engie)"><b>Engie Electrabel</b><small>Doel, Tihange, Coo, les centrales au gaz d'Amercœur et de Drogenbos, quatre petites centrales hydrauliques (Bévercé, Bütgenbach, Heid-de-Goreux, La Vierre) et 17,5 % de SeaMade. C'est aussi un fournisseur.</small></li>
-        <li style="--c:var(--own-luminus)"><b>Luminus</b><small>314 éoliennes sur terre (847 MW), le plus grand parc terrestre du pays selon l'entreprise. Aussi sept centrales hydrauliques sur la Meuse et la Sambre (Lixhe, Monsin, Ivoz-Ramet, Ampsin-Neuville, Andenne, Grands-Malades, Floriffoux) et les centrales au gaz de Seraing et de Ringvaart (Gand). C'est aussi un fournisseur.</small></li>
-        <li style="--c:var(--own-total)"><b>TotalEnergies</b><small>Centrale de pompage de Plate-Taille, aux lacs de l'Eau d'Heure (143 MW), reprise à l'origine par Lampiris. C'est aussi un fournisseur.</small></li>
-        <li style="--c:var(--own-parkwind)"><b>Parkwind</b><small>Parcs en mer Belwind, Northwind, Nobelwind et Northwester 2, avec des partenaires comme Sumitomo.</small></li>
-        <li style="--c:var(--own-otary)"><b>Otary</b><small>Rentel, et 70 % de SeaMade (avec Engie et Eneco). Otary regroupe des sociétés belges comme DEME, Aspiravi, Elicio et des investisseurs publics.</small></li>
-        <li style="--c:var(--own-norther)"><b>Norther</b><small>Détenu à parts égales par Elicio et Eneco. Eneco est aussi un fournisseur.</small></li>
-        <li style="--c:var(--own-cpower)"><b>C-Power</b><small>Premier grand parc belge en mer, détenu notamment par DEME, EDF, RWE et Nuhma.</small></li>
-        <li style="--c:#FFFFFF"><b>Les autres éoliennes sur terre et les panneaux solaires</b><small>Des milliers de propriétaires : ménages, coopératives, entreprises, communes. Ils restent en blanc et en bleu sur la carte.</small></li>
-      </ul>
-      <p class="note">Sources : sites des parcs et de leurs actionnaires, Luminus, liste Wikipédia des centrales électriques de Belgique. Les emplacements des parcs en mer sont approximatifs ; les éoliennes de Luminus sont réparties au hasard parmi celles sur terre (leur nombre est réel, pas leur place).</p>
-    </div>
-  </section>
-
-  <section class="chapter" data-cam="pylons" data-focus="grid" data-v="30000,380000" data-what="réseau d'Elia">
-    <div class="panel">
-      <h2><svg class="sym"><use href="#s-trafo"/></svg>L'autoroute à 380 000 volts</h2>
-      <p><strong>Elia</strong> gère le réseau de transport : les grandes lignes à haute tension, environ 8 000 km de lignes et de câbles.</p>
-      <p>Son métier principal : garder à chaque seconde l'équilibre entre ce qui est produit et ce qui est consommé. Si l'équilibre se rompt, la fréquence du courant s'écarte de 50 Hz, et des réserves s'activent automatiquement.</p>
-      <dl class="chain">
-        <dt>380 kV</dt><dd>grands axes et liaisons avec l'étranger</dd>
-        <dt>220–150 kV</dt><dd>transport régional</dd>
-        <dt>70–30 kV</dt><dd>vers les postes de distribution</dd>
-      </dl>
-      <p class="vnote"><b>Pourquoi si haut ?</b> Plus la tension est haute, moins le courant perd d'énergie en chemin. C'est pour ça qu'on l'élève pour les longues distances.</p>
-    </div>
-  </section>
-
-  <section class="chapter" data-cam="wide" data-focus="inter" data-v="380000" data-what="lignes vers les voisins">
-    <div class="panel">
-      <h2><svg class="sym"><use href="#s-link"/></svg>Relié à cinq voisins</h2>
-      <p>La Belgique échange de l'électricité en permanence avec la France, les Pays-Bas, le Luxembourg, l'Allemagne et le Royaume-Uni. Le courant va dans un sens ou dans l'autre selon les prix et la météo.</p>
-      <dl class="figs">
-        <div><dt>Nemo Link</dt><dd>câble sous la mer vers le Royaume-Uni, depuis 2019</dd></div>
-        <div><dt>ALEGrO</dt><dd>premier lien direct avec l'Allemagne, depuis 2020</dd></div>
-      </dl>
-      <p>En juillet 2026, la Belgique a importé 2,8 TWh et en a exporté 0,6. Plus de la moitié des importations venaient de France.</p>
-      <p class="vnote"><b>380 kV</b> Les lignes vers les pays voisins sont les plus puissantes du réseau.</p>
-    </div>
-  </section>
-
-  <section class="chapter" data-cam="dist" data-focus="dist" data-v="400,15000" data-what="réseau de quartier">
-    <div class="panel">
-      <h2><svg class="sym"><use href="#s-trafo"/></svg>Le dernier kilomètre</h2>
-      <p>Près des villes, des transformateurs abaissent la tension, puis des cabines de quartier la baissent encore. Ce réseau local est géré par une société qui dépend de votre région :</p>
-      <dl class="dso">
-        <div><dt>Fluvius</dt><dd>Flandre</dd></div>
-        <div><dt>ORES et RESA</dt><dd>Wallonie</dd></div>
-        <div><dt>Sibelga</dt><dd>Bruxelles</dd></div>
-      </dl>
-      <p class="note">Le gestionnaire de réseau ne vend pas l'électricité : il l'achemine et relève votre compteur. Vous choisissez librement votre fournisseur.</p>
-      <p class="vnote"><b>15 kV puis 400 V</b> Chaque transformateur fait descendre la tension d'une marche.</p>
-    </div>
-  </section>
-
-  <section class="chapter" data-cam="city" data-focus="city" data-v="230,150000" data-what="des usines aux maisons">
-    <div class="panel">
-      <h2><svg class="sym"><use href="#s-meter"/></svg>Qui consomme l'électricité ?</h2>
-      <p>Les ménages n'utilisent qu'un cinquième de l'électricité belge. La première consommatrice, c'est l'industrie : la chimie du port d'Anvers, la sidérurgie, l'agroalimentaire… Viennent ensuite les commerces, les bureaux et les services publics.</p>
-      <ul class="bill" id="sectors"></ul>
-      <p class="note">Source : Eurostat, consommation finale d'électricité de la Belgique en 2024 (77 TWh).</p>
-      <p class="vnote"><b>230 V à 150 kV</b> Les maisons sont branchées en basse tension, les grandes usines directement en haute tension.</p>
-    </div>
-  </section>
-
-  <section class="chapter" data-cam="house" data-focus="dist city" data-v="230" data-what="votre prise">
-    <div class="panel">
-      <h2><svg class="sym"><use href="#s-meter"/></svg>Chez vous</h2>
-      <p>La consommation change beaucoup au cours d'une journée. Déplacez le curseur pour voir ce qui se passe sur le réseau.</p>
-      <div class="clock">
-        <label for="heure">Heure de la journée <output id="heureTxt" class="n">12:00</output></label>
-        <input id="heure" type="range" min="0" max="24" step="0.25" value="12">
-        <p id="statut" aria-live="polite"></p>
-      </div>
-      <p class="vnote"><b>230 V · 50 Hz</b> À votre prise, le courant change de sens 100 fois par seconde : c'est un courant alternatif.</p>
-    </div>
-  </section>
-
-  <section class="chapter" data-cam="grid" data-focus="grid" data-v="30000,380000" data-what="réseau d'Elia" id="direct">
-    <div class="panel">
-      <h2><svg class="sym"><use href="#s-meter"/></svg>En ce moment</h2>
-      <p id="liveStatus" class="note" aria-live="polite">Chargement des données d'Elia…</p>
-      <p id="meteoTxt" class="note">Chargement de la météo…</p>
-      <div class="live" id="live" hidden>
-        <dl class="figs">
-          <div><dt id="liveLoad">–</dt><dd>consommés en Belgique en ce moment</dd></div>
-          <div><dt id="liveGen">–</dt><dd>produits en Belgique à la dernière donnée publiée</dd></div>
-          <div><dt id="liveCo2">–</dt><dd id="liveCo2Txt">de CO₂ par kWh consommé</dd></div>
-        </dl>
-        <div class="co2scale"><i></i><span><span>0 g</span><span>CO₂ par kWh : la couleur de la Belgique sur la carte</span><span>400 g</span></span></div>
-        <p class="sub">Qui produit ? <span class="note" id="liveMixTime"></span></p>
-        <div class="mix" id="liveMix" role="img"></div>
-        <ul class="legend" id="liveLegend"></ul>
-        <p class="sub">Aux frontières</p>
-        <ul class="borders" id="liveBorders"></ul>
-        <p class="sub">Sur la carte</p>
-        <p class="note">Le fond prend la couleur du ciel : bleu quand il est dégagé, blanc quand il est couvert, un mélange des deux quand il est partiellement nuageux, sombre la nuit. Le halo en haut à droite est le soleil : jaune quand il est faible, orangé quand il tape fort. Les nuages au-dessus de la carte suivent la couverture nuageuse. Les barbules en fond montrent le vent moyen sur le pays. Elles glissent dans le sens du vent, d'autant plus vite qu'il souffle fort : le trait pointe d'où vient le vent, une grande barbe vaut 10 nœuds (environ 18 km/h), une petite 5 nœuds, un cercle signale le calme.</p>
-        <p class="note">1 MW, c'est à peu près 400 bouilloires allumées en même temps. Le CO₂ compte aussi le courant importé. En 2025, la moyenne était d'environ 120 g par kWh. Mise à jour toutes les 5 minutes.</p>
-      </div>
-    </div>
-  </section>
-
-  <section class="chapter" data-cam="wind" data-focus="grid" data-v="30000,380000" data-what="réseau d'Elia" id="jour">
-    <div class="panel">
-      <h2><svg class="sym"><use href="#s-meter"/></svg>Aujourd'hui et demain</h2>
-      <p>La consommation suit notre rythme de vie : elle baisse la nuit et grimpe le matin, puis encore le soir. Le soleil et le vent, eux, suivent la météo. Elia prévoit les trois pour garder le réseau en équilibre.</p>
-      <p id="dayStatus" class="note" aria-live="polite">Chargement des données d'Elia…</p>
-      <figure class="chart" id="dayChart" hidden>
-        <svg id="daySvg" viewBox="0 0 600 300" role="img" aria-label="Consommation, production solaire et éolienne aujourd'hui et demain"></svg>
-        <figcaption class="keys">
-          <span style="--c:var(--ink)">Consommation</span>
-          <span style="--c:var(--sun)">Solaire</span>
-          <span style="--c:var(--wind)">Éolien</span>
-        </figcaption>
-      </figure>
-      <p class="note">À gauche du trait vertical : ce qui a été mesuré. À droite : les prévisions d'Elia.</p>
-    </div>
-  </section>
-
-  <section class="chapter" data-cam="solar" data-focus="city" data-v="230" data-what="votre prise">
-    <div class="panel">
-      <h2><svg class="sym"><use href="#s-meter"/></svg>Le prix sur le marché</h2>
-      <p>Les fournisseurs achètent une partie de leur électricité en bourse, la veille pour le lendemain. En juillet 2026, le prix moyen y était de 109 € par MWh, soit environ 11 centimes par kWh. Au bout du compte, un ménage paie environ 39 centimes par kWh, taxes et réseau compris.</p>
-      <dl class="figs">
-        <div><dt>90 €/MWh</dt><dd>en journée, de 8 h à 20 h en semaine</dd></div>
-        <div><dt>121 €/MWh</dt><dd>la nuit et le week-end</dd></div>
-      </dl>
-      <p>Étonnant : le courant était moins cher en journée. C'est l'effet du soleil. Vers midi, les panneaux produisent tellement que le prix chute, et il devient parfois négatif : certains producteurs paient alors pour injecter leur courant.</p>
-      <p class="note">Source : CREG, tableau de bord d'août 2026 (prix Belpex pour le lendemain, moyennes de juillet 2026).</p>
-    </div>
-  </section>
-
-  <section class="chapter" data-cam="house" data-focus="city" data-v="230" data-what="votre prise">
-    <div class="panel">
-      <h2><svg class="sym"><use href="#s-meter"/></svg>Votre facture</h2>
-      <p>Un ménage moyen consomme 3 500 kWh par an. En août 2026, il payait en moyenne <strong class="n" id="billTotal">1 350 €</strong> par an. Où va cet argent ?</p>
-      <div class="seg" role="group" aria-label="Choisir une région">
-        <button type="button" data-r="BE" aria-pressed="true">Belgique</button>
-        <button type="button" data-r="VL" aria-pressed="false">Flandre</button>
-        <button type="button" data-r="BR" aria-pressed="false">Bruxelles</button>
-        <button type="button" data-r="WAL" aria-pressed="false">Wallonie</button>
-      </div>
-      <ul class="bill" id="bill"></ul>
-      <p>Pour comparer, le même ménage payait environ 1 365 € en Allemagne, 1 275 € au Royaume-Uni, 897 € en France et 893 € aux Pays-Bas.</p>
-      <p class="note">Source : CREG, tableau de bord mensuel d'août 2026, prix moyen d'un contrat mono-horaire.</p>
-    </div>
-  </section>
-
-  <section class="chapter" data-cam="house" data-focus="city" data-v="230" data-what="votre prise" id="calcul">
-    <div class="panel">
-      <h2><svg class="sym"><use href="#s-meter"/></svg>Combien consomme votre maison ?</h2>
-      <p>Un appareil a une <strong>puissance</strong>, en watts (W) : c'est ce qu'il tire du réseau quand il fonctionne. Multipliez-la par la durée d'utilisation et vous obtenez l'<strong>énergie</strong> consommée, en kilowattheures (kWh). C'est elle que vous payez. Une télé de 100 W allumée pendant 3 heures consomme 0,3 kWh.</p>
-      <div class="calcPrice">
-        <label for="calcRegion">Région</label>
-        <select id="calcRegion">
-          <option value="BE">Moyenne belge</option>
-          <option value="VL">Flandre</option>
-          <option value="BR">Bruxelles</option>
-          <option value="WAL">Wallonie</option>
-        </select>
-        <label for="calcPrice">Prix par kWh</label>
-        <span><input id="calcPrice" type="number" min="0" step="0.1"> centimes</span>
-      </div>
-      <p class="note" id="calcPriceNote"></p>
-      <p>Cochez vos appareils et ajustez leur utilisation.</p>
-      <ul class="calc" id="calc"></ul>
-      <p class="calcTotal" aria-live="polite"><span>Votre total</span><strong class="n" id="calcKwh">–</strong><strong class="n" id="calcEur">–</strong></p>
-      <p class="note">Estimations typiques, à adapter à vos appareils. Pour comparer, un ménage moyen consomme 3 500 kWh par an. Les petits appareils et les veilles ne sont pas comptés.</p>
-    </div>
-  </section>
-
-  <section class="chapter" data-cam="house" data-focus="city" data-v="230" data-what="votre prise">
-    <div class="panel">
-      <h2><svg class="sym"><use href="#s-meter"/></svg>Consommer au bon moment</h2>
-      <p>Sans rien changer à votre confort, vous pouvez aider le réseau, et parfois votre portefeuille.</p>
-      <ul class="tips">
-        <li><b>Évitez la pointe du soir.</b> Entre 17 h et 20 h environ, tout le monde cuisine et rentre chez soi. Lancez plutôt le lave-linge, le lave-vaisselle ou la recharge de la voiture plus tard, ou pendant la journée.</li>
-        <li><b>Avec des panneaux solaires, consommez à midi.</b> Vous utilisez votre propre courant au lieu de l'envoyer sur le réseau puis de le racheter plus cher le soir.</li>
-        <li><b>Regardez les contrats dynamiques.</b> Avec un compteur digital, certains fournisseurs proposent un prix qui change chaque heure, selon le marché. On paie moins aux heures creuses, mais plus pendant la pointe.</li>
-      </ul>
-      <p class="note">La courbe « Aujourd'hui et demain », plus haut, montre les heures où le soleil et le vent produisent le plus.</p>
-    </div>
-  </section>
-
-
-  <div class="part" id="partie-8">
-    <p class="part-n">Planche 8 / 9</p>
-    <h2 class="part-t">Marché et acteurs</h2>
-    <p class="part-d">Comment le marché s'est ouvert, et qui fait quoi aujourd'hui.</p>
-  </div>
-
-  <section class="chapter" data-cam="plan" data-focus="" id="liberalisation">
-    <div class="panel">
-      <h2><svg class="sym"><use href="#s-link"/></svg>Un marché ouvert à la concurrence</h2>
-      <p>Jusqu'aux années 2000, un petit nombre d'entreprises produisaient, transportaient et vendaient l'électricité et le gaz. L'Europe a imposé d'ouvrir le marché à la concurrence : depuis 2007, tous les consommateurs belges choisissent leur fournisseur.</p>
-      <p>Les métiers ont été séparés. Les <strong>réseaux</strong> restent des monopoles régulés : on ne choisit pas son gestionnaire de réseau, il dépend de l'adresse. La <strong>production</strong> et la <strong>fourniture</strong> sont ouvertes à la concurrence.</p>
-      <dl class="chain">
-        <dt>Producteurs</dt><dd>fabriquent l'électricité ; ils la vendent sur le marché de gros</dd>
-        <dt>Réseaux</dt><dd>Elia et Fluxys pour le transport, Fluvius, ORES, RESA et Sibelga pour la distribution</dd>
-        <dt>Fournisseurs</dt><dd>achètent l'énergie et la revendent aux clients ; ce sont eux qui envoient la facture</dd>
-        <dt>Régulateurs</dt><dd>CREG au fédéral, VNR, CWaPE et Brugel dans les régions : ils contrôlent les tarifs de réseau et le bon fonctionnement du marché</dd>
-      </dl>
-    </div>
-  </section>
-
-  <section class="chapter" data-cam="overview" data-focus="grid dist" data-v="230,380000" data-what="tout le réseau" id="acteurs">
-    <div class="panel">
-      <h2><svg class="sym"><use href="#s-link"/></svg>Qui fait quoi ?</h2>
-      <p>De la centrale à la prise, chaque étape a ses responsables. Les réseaux sont des monopoles régulés : vous ne choisissez pas votre gestionnaire de réseau, il dépend de votre adresse. Vous choisissez en revanche votre fournisseur, parmi de nombreuses sociétés comme Engie, Luminus, TotalEnergies, Eneco, Mega ou Bolt.</p>
-      <p class="sub">Le réseau à haute tension</p>
-      <ul class="actors">
-          <li><span class="logo"><img src="logos/elia.svg" alt="" onerror="this.src.endsWith('.svg') ? this.src = this.src.replace(/\.svg$/, '.png') : this.remove()"><b>Elia</b></span><small>gère le réseau de transport (30 à 380 kV), l'équilibre à chaque seconde, les liaisons avec l'étranger et l'île Princesse Elisabeth</small></li>
-      </ul>
-      <p class="sub">Les réseaux locaux</p>
-      <ul class="actors">
-          <li><span class="logo"><img src="logos/fluvius.svg" alt="" onerror="this.src.endsWith('.svg') ? this.src = this.src.replace(/\.svg$/, '.png') : this.remove()"><b>Fluvius</b></span><small>gestionnaire du réseau de distribution en Flandre</small></li>
-          <li><span class="logo"><img src="logos/ores.svg" alt="" onerror="this.src.endsWith('.svg') ? this.src = this.src.replace(/\.svg$/, '.png') : this.remove()"><b>ORES</b></span><small>gestionnaire du réseau de distribution dans la majorité des communes wallonnes</small></li>
-          <li><span class="logo"><img src="logos/resa.svg" alt="" onerror="this.src.endsWith('.svg') ? this.src = this.src.replace(/\.svg$/, '.png') : this.remove()"><b>RESA</b></span><small>gestionnaire du réseau de distribution dans une grande partie de la province de Liège</small></li>
-          <li><span class="logo"><img src="logos/sibelga.svg" alt="" onerror="this.src.endsWith('.svg') ? this.src = this.src.replace(/\.svg$/, '.png') : this.remove()"><b>Sibelga</b></span><small>gestionnaire du réseau de distribution à Bruxelles</small></li>
-          <li><span class="logo"><img src="logos/synergrid.svg" alt="" onerror="this.src.endsWith('.svg') ? this.src = this.src.replace(/\.svg$/, '.png') : this.remove()"><b>Synergrid</b></span><small>fédération des gestionnaires de réseaux d'électricité et de gaz</small></li>
-      </ul>
-      <p class="sub">Les producteurs</p>
-      <ul class="actors">
-          <li><span class="logo"><img src="logos/engie.svg" alt="" onerror="this.src.endsWith('.svg') ? this.src = this.src.replace(/\.svg$/, '.png') : this.remove()"><b>Engie Electrabel</b></span><small>exploite les centrales nucléaires de Doel et Tihange, la centrale de Coo et des centrales au gaz</small></li>
-          <li><span class="logo"><img src="logos/luminus.svg" alt="" onerror="this.src.endsWith('.svg') ? this.src = this.src.replace(/\.svg$/, '.png') : this.remove()"><b>Luminus</b></span><small>centrales au gaz, éoliennes et centrales hydrauliques sur la Meuse</small></li>
-          <li><span class="logo"><img src="logos/parkwind.svg" alt="" onerror="this.src.endsWith('.svg') ? this.src = this.src.replace(/\.svg$/, '.png') : this.remove()"><b>Parkwind</b></span><small>développe et exploite plusieurs parcs éoliens en mer du Nord</small></li>
-          <li><span class="logo"><img src="logos/otary.svg" alt="" onerror="this.src.endsWith('.svg') ? this.src = this.src.replace(/\.svg$/, '.png') : this.remove()"><b>Otary</b></span><small>groupe d'entreprises derrière plusieurs parcs éoliens en mer</small></li>
-      </ul>
-      <p class="sub">Les régulateurs et le contrôle</p>
-      <ul class="actors">
-          <li><span class="logo"><img src="logos/creg.svg" alt="" onerror="this.src.endsWith('.svg') ? this.src = this.src.replace(/\.svg$/, '.png') : this.remove()"><b>CREG</b></span><small>régulateur fédéral : réseau de transport, marché de gros, suivi des prix</small></li>
-          <li><span class="logo"><img src="logos/vnr.svg" alt="" onerror="this.src.endsWith('.svg') ? this.src = this.src.replace(/\.svg$/, '.png') : this.remove()"><b>Vlaamse Nutsregulator</b></span><small>régulateur flamand : tarifs de distribution, comparateur V-test</small></li>
-          <li><span class="logo"><img src="logos/cwape.svg" alt="" onerror="this.src.endsWith('.svg') ? this.src = this.src.replace(/\.svg$/, '.png') : this.remove()"><b>CWaPE</b></span><small>régulateur wallon : tarifs de distribution, comparateur CompaCWaPE</small></li>
-          <li><span class="logo"><img src="logos/brugel.svg" alt="" onerror="this.src.endsWith('.svg') ? this.src = this.src.replace(/\.svg$/, '.png') : this.remove()"><b>Brugel</b></span><small>régulateur bruxellois : tarifs de distribution, comparateur Brusim</small></li>
-          <li><span class="logo"><img src="logos/afcn.svg" alt="" onerror="this.src.endsWith('.svg') ? this.src = this.src.replace(/\.svg$/, '.png') : this.remove()"><b>AFCN</b></span><small>Agence fédérale de contrôle nucléaire : sûreté des centrales nucléaires</small></li>
-      </ul>
-    </div>
-  </section>
-
-  <section class="chapter" data-cam="city" data-focus="dist" data-v="230" data-what="votre prise" id="fournisseurs">
-    <div class="panel">
-      <h2><svg class="sym"><use href="#s-meter"/></svg>Tous les fournisseurs, région par région</h2>
-      <p>Pour vendre de l'électricité, une société a besoin d'une licence de la région. Beaucoup n'en vendent qu'aux entreprises. En jaune, celles qui proposent des contrats aux ménages.</p>
-      <div class="region">
-        <h3>Wallonie</h3>
-        <ul class="chips" id="supWAL"></ul>
-        <details><summary id="supWALn">Tous les titulaires d'une licence</summary><p id="supWALall"></p></details>
-      </div>
-      <div class="region">
-        <h3>Bruxelles</h3>
-        <ul class="chips" id="supBR"></ul>
-        <details><summary id="supBRn">Tous les titulaires d'une licence</summary><p id="supBRall"></p></details>
-      </div>
-      <div class="region">
-        <h3>Flandre</h3>
-        <p class="note">La liste du régulateur flamand ne précise pas qui sert les ménages. Le comparateur officiel V-test montre les offres pour particuliers.</p>
-        <details open><summary id="supVLn">Tous les titulaires d'une licence</summary><p id="supVLall"></p></details>
-      </div>
-      <p class="note">Sources : listes officielles de la CWaPE, de Brugel et de la Vlaamse Nutsregulator (liste du 11 juin 2026), consultées le 24 septembre 2026. Pour comparer les offres : CompaCWaPE, Brusim et V-test.</p>
-    </div>
-  </section>
-
-
-  <div class="part" id="partie-9">
-    <p class="part-n">Planche 9 / 9</p>
-    <h2 class="part-t">Réseaux de chaleur</h2>
-    <p class="part-d">Chauffer un quartier entier avec une seule source de chaleur.</p>
-  </div>
-
-  <section class="chapter" data-cam="heat" data-focus="city" id="chaleur">
-    <div class="panel">
-      <h2><svg class="sym"><use href="#s-meter"/></svg>Le chauffage partagé</h2>
-      <p>Un réseau de chaleur transporte de l'eau chaude par des tuyaux enterrés, depuis une source centrale jusqu'aux bâtiments d'un quartier. La chaleur peut venir d'un incinérateur de déchets, d'une cogénération, de biomasse ou de la chaleur perdue d'une usine.</p>
-      <p>En Belgique, ces réseaux restent rares : ils fournissent environ 1 % de l'énergie finale. Les régions veulent les développer pour réduire la consommation de gaz et de mazout des logements.</p>
-      <p class="note">Source : Eurostat, consommation finale d'énergie 2024 (chaleur : 1,0 %).</p>
-    </div>
-  </section>
-
-  <footer class="chapter end" data-cam="overview" data-focus="" data-v="230" data-what="votre prise">
-    <div class="panel">
-      <h2>Pour aller plus loin</h2>
-      <p>La production, la consommation et les échanges viennent des données ouvertes d'<a href="https://opendata.elia.be" target="_blank" rel="noopener">Elia</a>. Les prix viennent de la <a href="https://www.creg.be" target="_blank" rel="noopener">CREG</a>, le régulateur fédéral de l'énergie. La météo vient d'<a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a> (données sous licence CC BY 4.0).</p>
-      <p class="note" id="noWebgl" hidden>La carte 3D n'a pas pu démarrer sur cet appareil. Le texte reste complet.</p>
-    </div>
-  </footer>
+  article { position: relative; z-index: 4; }
+  .step { height: 100vh; display: flex; align-items: center; padding: 0 clamp(28px, 6vw, 96px); }
+  .step h2, .step p, #fig { text-shadow: 0 0 .3em var(--calque), 0 0 .7em var(--calque), 0 0 1.2em var(--calque); }
+  .step h2 { padding: .25em .4em .3em; font: 400 clamp(2rem, 5vw, 4rem)/1.05 var(--display); max-width: 16ch; }
+  .step[data-net="3"] { justify-content: flex-end; } .step[data-net="3"] p { max-width: 25rem; } /* panel on the left, note on the right */
+  .step p { max-width: 33rem; padding: 1.1em 1.4em 1.3em; font: 400 clamp(1.05rem, 1.4vw, 1.22rem)/1.5 var(--prose); }
+  .step p b { display: block; margin-bottom: .45em; font: 400 1.6rem/1.1 var(--display); }
+  .volts { display: flex; flex-wrap: wrap; gap: .4em 1.2em; margin-top: .9em; font: 400 .85rem/1.2 var(--ui); }
+  .volts i { display: flex; align-items: center; gap: .45em; font-style: normal; }
+  .volts i::before { content: ''; width: 1.6em; height: 3px; background: var(--c); }
+  #meter { position: fixed; left: 0; top: 0; z-index: 3; width: 190px; pointer-events: none; text-align: center; opacity: 0; transition: opacity .5s;
+    font: 400 .8rem/1.3 var(--ui); text-shadow: 0 0 .3em var(--calque), 0 0 .7em var(--calque); }
+  #meter svg { display: block; width: 100%; overflow: visible; }
+  #meter path { fill: none; stroke-width: 7; }
+  #meter .track { stroke: var(--cote); stroke-opacity: .25; }
+  #meter .val { stroke: var(--c, var(--courant)); stroke-dasharray: 0 100; }
+  #meter b { display: block; margin-bottom: .2em; font: 400 1.9rem/1 var(--display); }
+  #meter small { display: block; }
+  /* glass: the map shows through, blurred and a little brighter; light catches the rim and follows the pointer */
+  .glass { --gx: 30%; --gy: 0%; position: fixed; isolation: isolate; border-radius: 30px; color: #16202b;
+    box-shadow: 0 6px 6px rgba(20,30,40,.12), 0 0 24px rgba(20,30,40,.08), 0 30px 60px -22px rgba(20,30,40,.24);
+    transform: perspective(900px) rotateX(var(--tx, 0deg)) rotateY(var(--ty, 0deg));
+    transition: opacity .9s ease .35s, translate .9s cubic-bezier(.2,.8,.2,1) .35s, transform .5s cubic-bezier(.2,.8,.2,1); }
+  .glass::before { content: ''; position: absolute; inset: 0; z-index: -2; border-radius: inherit; overflow: hidden; pointer-events: none; /* the world behind, bent like through liquid glass */
+    -webkit-backdrop-filter: blur(5px) saturate(175%); backdrop-filter: blur(5px) saturate(175%); filter: url(#liquid); }
+  .glass::after { content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none; /* tint, a sheen that follows the pointer, and the lit rim */
+    background: radial-gradient(380px 240px at var(--gx) var(--gy), rgba(255,255,255,.4), rgba(255,255,255,0) 60%), rgba(255,255,255,.2);
+    box-shadow: inset 2px 2px 1px rgba(255,255,255,.6), inset -1px -1px 1px 1px rgba(255,255,255,.45), inset 0 0 0 .5px rgba(255,255,255,.4), inset 0 0 24px rgba(255,255,255,.12); }
+  @media (prefers-reduced-motion: reduce) { .glass { transform: none; transition: opacity .3s; } }
+  #dash, #timeline, #legend { z-index: 6; opacity: 0; pointer-events: none; font: 400 .82rem/1.3 var(--display); }
+  #dash { top: 44px; left: 44px; bottom: 208px; width: min(345px, calc(100% - 88px)); padding: 14px; display: flex; }
+  .d-scroll { flex: 1; overflow: auto; scrollbar-width: none; }
+  #timeline { left: 44px; bottom: 44px; width: min(345px, calc(100% - 88px)); padding: 14px 20px 12px; }
+  #legend { right: 44px; bottom: 44px; width: 230px; padding: 12px 16px; display: grid; gap: 4px; }
+  #dash, #timeline { translate: -28px 0; } #legend { translate: 28px 0; } /* they slide in after the note has appeared */
+  body.dash #dash, body.dash #timeline, body.dash #legend { opacity: 1; pointer-events: auto; translate: 0 0; }
+  body.dash #fig { opacity: 0; } /* the panel carries its own sources */
+  #dash button, #timeline button { font: inherit; color: inherit; cursor: pointer; }
+  #dash :focus-visible, #timeline :focus-visible { outline: 2px solid #1f4fd8; outline-offset: 2px; }
+  .flag { display: inline-flex; width: 26px; height: 18px; } .flag i { flex: 1; } .flag i:nth-child(1) { background: #111; } .flag i:nth-child(2) { background: #fdda24; } .flag i:nth-child(3) { background: #ef3340; }
+  .d-tabs { display: grid; grid-template-columns: 1fr 1fr; padding: 4px; margin-bottom: 12px; border-radius: 999px;
+    background: rgba(255,255,255,.14); box-shadow: inset 0 1px 3px rgba(20,30,40,.12), inset 0 -1px 0 rgba(255,255,255,.5); }
+  .d-tabs button { border: 0; background: none; border-radius: 999px; padding: .55em; font-size: .95rem; color: rgba(22,32,43,.62); transition: background .35s, color .35s, box-shadow .35s; }
+  .d-tabs button[aria-selected="true"] { color: #16202b; background: linear-gradient(180deg, rgba(255,255,255,.85), rgba(255,255,255,.55));
+    box-shadow: inset 0 1px 0 #fff, 0 2px 8px rgba(20,30,40,.14), 0 0 0 .5px rgba(255,255,255,.7); }
+  .d-card { padding: 16px 16px 12px; border-radius: 22px; background: rgba(255,255,255,.16);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.7), inset 0 0 0 .5px rgba(255,255,255,.35); }
+  .d-title { font: 400 1.25rem/1.1 var(--display); }
+  .d-when { color: #666; margin: 2px 0 12px; }
+  .d-kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; text-align: center; margin-bottom: 14px; }
+  .kpi { position: relative; display: grid; justify-items: center; }
+  .d-tile { display: grid; place-content: center; width: 78px; height: 72px; border-radius: 14px; font-size: .68rem; line-height: 1.1; transition: background .6s; }
+  .d-tile b { font-size: 1.35rem; }
+  .d-ring { position: relative; width: 82px; height: 72px; display: grid; place-items: center; }
+  .d-ring svg { position: absolute; inset: 0 5px; transform: rotate(135deg); }
+  .d-ring circle { fill: none; stroke-width: 9; stroke-linecap: round; }
+  .d-ring .trk { stroke: #e6e4dc; stroke-dasharray: 75 100; }
+  .d-ring .val { stroke-dasharray: 0 100; transition: stroke-dasharray .8s ease-out; }
+  .v-low { stroke: #a8cf98; } .v-ren { stroke: #93cfc7; }
+  .d-ring b { font-size: 1.15rem; font-weight: 400; }
+  .info { width: 22px; height: 22px; margin-top: -11px; border-radius: 50%; border: 1.5px solid #222; background: #fff; font: 600 .7rem/1 Georgia, serif !important; }
+  .lbl { margin-top: 4px; font-size: .8rem; }
+  .d-chart { display: grid; grid-template-columns: 8.4em 1fr; row-gap: 4px; align-items: center; }
+  .d-chart .ax { grid-column: 2; position: relative; height: 16px; font-size: .68rem; color: #777; border-bottom: 1px solid #ddd; }
+  .d-chart .ax span { position: absolute; bottom: 2px; transform: translateX(-50%); white-space: nowrap; }
+  .d-chart .row { display: contents; }
+  .d-chart .name { display: flex; align-items: center; gap: 7px; background: none; border: 0; padding: 1px 0; text-align: left; font-size: .8rem; }
+  .d-chart .ico { width: 15px; height: 15px; border-radius: 4px; background: var(--c); flex: none; }
+  .d-chart .plot { position: relative; height: 14px; background-image: var(--grid); }
+  .d-chart .plot i { position: absolute; top: 2px; bottom: 2px; background: var(--c); transition: left .5s, width .5s; }
+  .d-chart .plot em { position: absolute; top: -1px; font: 400 .75rem/1 var(--display); color: #999; font-style: normal; }
+  .d-chart .sub .name { padding-left: 22px; color: #555; }
+  .d-chart + .d-axis { margin: 2px 0 12px 8.4em; display: flex; gap: .6em; font-size: .72rem; color: #666; }
+  .d-axis .neg { margin-left: -4.2em; }
+  .d-src { margin-top: 6px; font-size: .68rem; color: #777; }
+  .tl-top { display: flex; justify-content: space-between; align-items: flex-start; }
+  .tl-when { display: grid; } .tl-day { color: #666; } .tl-time { font-weight: 400; font-size: 1.15rem; }
+  .tl-ctl { position: relative; display: flex; gap: 6px; align-items: center; }
+  .tl-ctl > button { border: 0; background: none; padding: .3em .45em; border-radius: 8px; font-size: .9rem; }
+  .tl-ctl > button:hover { background: rgba(0,0,0,.06); }
+  .tl-menu { position: absolute; right: 30px; bottom: 120%; margin: 0; padding: 6px; list-style: none; border-radius: 18px; background: rgba(255,255,255,.55);
+    -webkit-backdrop-filter: blur(20px) saturate(180%); backdrop-filter: blur(20px) saturate(180%); box-shadow: inset 0 1px 0 #fff, 0 12px 30px rgba(20,30,40,.18); }
+  .tl-menu li { padding: .45em 1.2em .45em .7em; border-radius: 8px; cursor: pointer; white-space: nowrap; }
+  .tl-menu li[aria-selected="true"] { background: rgba(255,255,255,.6); box-shadow: inset 0 1px 0 #fff; }
+  .tl-range { width: 100%; margin: 12px 0 4px; -webkit-appearance: none; appearance: none; height: 12px; border-radius: 999px; background: rgba(255,255,255,.22); box-shadow: inset 0 1px 3px rgba(20,30,40,.18), inset 0 -1px 0 rgba(255,255,255,.6); }
+  .tl-range::-webkit-slider-thumb { -webkit-appearance: none; width: 34px; height: 34px; border-radius: 50%; cursor: grab; border: 0;
+    background: radial-gradient(circle at 35% 30%, #fff, rgba(255,255,255,.55) 60%, rgba(255,255,255,.35)); box-shadow: inset 0 1px 1px #fff, inset 0 -2px 4px rgba(20,30,40,.12), 0 4px 12px rgba(20,30,40,.22); }
+  .tl-range::-moz-range-thumb { width: 34px; height: 34px; border-radius: 50%; background: #fff; border: 2px solid #ddd; }
+  .tl-ticks { position: relative; height: 26px; font-size: .68rem; color: #555; background-image: repeating-linear-gradient(90deg, #ccc 0 1px, transparent 1px 8px); background-size: 100% 6px; background-repeat: no-repeat; }
+  .tl-ticks span { position: absolute; top: 9px; transform: translateX(-50%); white-space: nowrap; }
+  .tl-ticks .live { top: 0; width: 2px; height: 10px; background: #e5484d; transform: none; }
+  #legend b { font-weight: 400; } #legend small { color: #777; }
+  #legend .grad { height: 8px; border-radius: 4px; }
+  #legend .lg-n { display: flex; justify-content: space-between; font-size: .68rem; } #legend i { font-style: normal; }
+  #tip, #pop { z-index: 8; max-width: 300px; padding: 14px 16px; border-radius: 22px; font: 400 .85rem/1.35 var(--display); }
+  #tip { text-align: center; pointer-events: none; }
+  #pop { max-width: 360px; }
+  #pop h4 { display: flex; align-items: center; gap: 8px; font: 400 1.1rem/1.2 var(--display); } #pop h4 .ico { width: 18px; height: 18px; border-radius: 5px; background: var(--c); }
+  #pop .when { color: #666; padding-bottom: 8px; margin-bottom: 8px; border-bottom: 1px solid #e5e5e5; }
+  #pop p + p { margin-top: 10px; } #pop small { color: #777; }
+  #pop .tiles { display: flex; gap: 8px; margin-top: 6px; }
+  #pop .tiles span { display: grid; place-content: center; min-width: 74px; height: 64px; padding: 0 6px; border-radius: 12px; text-align: center; font-size: .7rem; line-height: 1.15; }
+  #pop .tiles b { font-size: 1.15rem; font-weight: 400; }
+  @media (max-width: 640px) { #dash { bottom: auto; max-height: 55vh; } #legend { display: none; } }
+  #ladder { position: fixed; right: 28px; top: 50%; z-index: 5; transform: translateY(-50%); display: grid; gap: .9em; opacity: 0; transition: opacity .6s;
+    font: 400 .85rem/1 var(--ui); text-shadow: 0 0 .3em var(--calque), 0 0 .7em var(--calque); pointer-events: none; }
+  #ladder span:not(.mark) { display: flex; align-items: center; gap: .6em; color: var(--cote); transition: color .4s; }
+  #ladder span:not(.mark)::before { content: ''; width: 22px; height: 3px; background: var(--c); }
+  #ladder span.on { color: var(--encre); }
+  #ladder .mark { position: absolute; left: -14px; width: 8px; height: 8px; border-radius: 50%; background: var(--encre); transition: top .8s cubic-bezier(.4,0,.2,1); }
+  #chain { position: fixed; top: 30px; left: 50%; translate: -50% 0; z-index: 5; width: min(560px, calc(100% - 120px)); pointer-events: none; opacity: 0; transition: opacity .8s;
+    font: 400 .78rem/1.2 var(--ui); text-align: center; text-shadow: 0 0 .3em var(--calque), 0 0 .7em var(--calque); }
+  #chain ol { position: relative; display: flex; justify-content: space-between; margin: 0; padding: 0; list-style: none; }
+  #chain ol::before, #chain ol::after { content: ''; position: absolute; left: 6%; right: 6%; top: 5px; height: 1.5px; background: rgba(210,53,43,.25); }
+  #chain ol::after { right: auto; width: var(--p, 0%); background: #d2352b; transition: width .9s cubic-bezier(.4,0,.2,1); } /* the thread fills up as we go */
+  #chain li { position: relative; flex: 1; padding-top: 16px; color: var(--cote); transition: color .5s; }
+  #chain li::before { content: ''; position: absolute; top: 0; left: 50%; width: 9px; height: 9px; margin-left: -5.5px; border-radius: 50%; border: 1.5px solid #d2352b; background: var(--calque); transition: background .5s, transform .5s; }
+  #chain li.done::before { background: rgba(210,53,43,.35); }
+  #chain li.on { color: var(--encre); } #chain li.on::before { background: #d2352b; transform: scale(1.35); }
+  #chain.reg li::before { background: #d2352b; } #chain.reg li { color: var(--encre); }
+  #chain .who { margin-top: 8px; min-height: 2.6em; font: 400 .8rem/1.3 var(--prose); color: #2b3540; transition: opacity .4s; }
+  @media (max-width: 640px) { #chain li { font-size: 0; } #chain .who { font-size: .72rem; } }
+  .bill { display: flex; height: 22px; margin-top: .9em; font: 400 .72rem/22px var(--ui); color: #fff; text-shadow: none; }
+  .bill i { width: var(--w); background: var(--c); font-style: normal; text-align: center; overflow: hidden; }
+  #leader { position: fixed; inset: 0; z-index: 3; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+  .tag { position: absolute; left: 0; top: 0; white-space: nowrap; font: 500 11px/1 var(--ui); transition: opacity .2s; }
+  .tag::before { content: ''; position: absolute; left: -3px; top: -3px; width: 5px; height: 5px; border: 1px solid var(--encre); }
+  .tag::after { content: ''; position: absolute; left: 0; top: 0; width: 17px; height: 1px; background: var(--encre); transform-origin: left; transform: rotate(-45deg); }
+  .tag.big::before, .tag.big::after { display: none; }
+  .tag.big span { left: 0; bottom: 0; translate: -50% 50%; /* centred on its point; the label mover sets transform on top */ padding: 0; border: 0; background: none; text-align: center; font: 400 .78rem/1.3 var(--display); color: #3d4852; text-shadow: 0 0 .3em var(--calque), 0 0 .7em var(--calque); }
+  .tag.big span b { display: block; font: 400 1.5rem/1.05 var(--display); color: var(--encre); }
+  .tag.big span small { display: block; }
+  .tag span { position: absolute; left: 12px; bottom: 12px; padding: 4px 6px; background: var(--calque); border: 1px solid var(--encre); }
+  #fig { position: fixed; left: 28px; bottom: 26px; z-index: 5; max-width: calc(100% - 56px); font: 400 11px/1.4 var(--ui); }
+</style>
+</head>
+<body>
+<div id="tags"></div>
+<div id="fade"></div>
+<main>
+  <h1>L'énergie</h1>
+  <p class="sub">Comment ça marche en Belgique ?</p>
 </main>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-<script src="script.js"></script>
-<script src="data.js"></script>
+<article>
+  <div class="step"></div>
+  <div class="step"></div>
+  <section class="step" data-chain="0" data-stop="start" data-kind="all"><p><b>Le fil rouge</b>Entre une centrale et votre prise, l’électricité passe de main en main. En Belgique, le marché de l’énergie est <em>libéralisé</em> : produire, transporter, distribuer et vendre l’électricité sont des métiers séparés, confiés à des acteurs différents, sous le contrôle de régulateurs fédéraux et régionaux. Suivons-la, maillon par maillon.</p></section>
+  <section class="step" data-chain="1" data-stop="nuc" data-kind="nuc" data-fig="Centrales nucléaires de Doel et de Tihange."><p><b>Le nucléaire</b>Pendant des décennies, près de la moitié de notre électricité est venue de deux sites : Doel, près d'Anvers, et Tihange, près de Huy. Sept réacteurs. Le principe tient en une phrase : la chaleur de l'uranium fait bouillir de l'eau, la vapeur fait tourner une turbine, la turbine fait tourner un alternateur. Aujourd'hui, il n'en tourne plus que <em>deux</em>, prolongés jusqu'en 2035.</p></section>
+  <section class="step" data-chain="1" data-stop="gas" data-kind="gas" data-fig="Principales centrales au gaz."><p><b>Le gaz</b>Quand la production éolienne et solaire baisse ou que la demande augmente, les <em>centrales au gaz</em> peuvent contribuer à équilibrer le réseau. Dans une centrale à cycle combiné, la combustion du gaz entraîne une première turbine. La chaleur des gaz d’échappement sert ensuite à produire de la vapeur, qui fait tourner une seconde turbine.<br><br>Ces centrales sont pilotables, mais leur vitesse de démarrage dépend de leur technologie. La Belgique ne produit plus d’électricité à partir du charbon depuis la fermeture de sa dernière grande centrale, en 2016.<br><br>Le gaz naturel, lui, est entièrement <em>importé</em> : par gazoducs, ou par navires méthaniers au terminal de Zeebruges. Son transport à travers le pays est assuré par Fluxys.</p></section>
+  <section class="step" data-chain="1" data-stop="wind" data-kind="wind" data-fig="Zone éolienne en mer du Nord et éoliennes terrestres."><p><b>Le vent</b>À plus de 20 kilomètres des côtes, des éoliennes tournent en <em>mer du Nord</em>. Le vent fait tourner leurs pales, qui entraînent un générateur. Quand il souffle fort, la puissance cumulée des éoliennes en mer peut rivaliser avec celle de deux réacteurs nucléaires. À terre, d’autres éoliennes se dressent le long des autoroutes, dans les ports et dans les champs. Quand le vent tombe, leur production diminue.</p></section>
+  <section class="step" data-chain="1" data-stop="sun" data-kind="sun" data-fig="Parc photovoltaïque, schéma ; hauteurs des installations exagérées. Chiffre 2025 : IEA PVPS."><p><b>Le soleil</b>Sur les toits des maisons et des bâtiments, ainsi que dans les parcs solaires, les <em>panneaux photovoltaïques</em> transforment directement la lumière en électricité. Leur production est généralement plus forte en journée et en été ; elle baisse lorsque le ciel est couvert et s’arrête la nuit. En 2025, le solaire photovoltaïque a fourni environ 15 % de l’électricité produite en Belgique.</p></section>
+  <section class="step" data-chain="1" data-stop="hydro" data-kind="hydro" data-fig="Coo et les centrales au fil de l'eau de la Meuse."><p><b>L'hydraulique</b>La Belgique dispose de peu de grands barrages, mais la centrale de Coo peut <em>stocker</em> de l’électricité. Quand l’électricité est abondante, elle pompe l’eau vers un bassin situé en hauteur. Quand le réseau en a besoin, l’eau redescend et entraîne des turbines : la centrale peut alors fournir jusqu’à environ 1 090 mégawatts. Coo ne crée donc pas d’énergie : elle la stocke pour la restituer plus tard. Sur la Meuse, quelques petites centrales au fil de l’eau produisent aussi de l’électricité.</p></section>
+  <section class="step" data-chain="1" data-stop="bio" data-kind="bio" data-fig="Biomasse et biométhanisation. Emplacements indicatifs."><p><b>La biomasse</b>Les centrales à biomasse brûlent de la matière organique — par exemple du bois ou des résidus agricoles — pour produire de la chaleur et, parfois, de l’électricité. Dans les fermes, des digesteurs transforment le lisier et d’autres déchets organiques en <em>biogaz</em>, qui peut ensuite être brûlé.<br><br>La biomasse est considérée comme renouvelable si elle provient de ressources gérées durablement et si son utilisation ne les épuise pas.</p></section>
+  <section class="step" data-chain="1" data-stop="waste" data-kind="waste" data-fig="Incinérateurs avec valorisation énergétique."><p><b>Les déchets</b>Vos déchets non recyclables peuvent aussi produire de l’électricité. À Bruxelles, Herstal ou Anvers, ils sont <em>incinérés</em> dans des installations qui récupèrent la chaleur de la combustion. Celle-ci transforme de l’eau en vapeur, qui fait tourner une turbine reliée à un alternateur. Certaines installations fournissent aussi de la chaleur aux bâtiments voisins. Le courant produit rejoint le réseau : il peut contribuer à alimenter les rues, les maisons et les entreprises.</p></section>
+  <section class="step" data-chain="1" data-stop="geo" data-kind="geo" data-fig="Forage géothermique de Mol. Profondeur non à l'échelle."><p><b>La géothermie</b>À Mol, en Campine, des forages descendent à environ 3,5 kilomètres pour capter de l’eau chaude, à près de 125 °C. En Belgique, la <em>géothermie profonde</em> sert surtout à produire de la chaleur. La production d’électricité est étudiée, mais elle n’est pas encore utilisée à grande échelle.</p></section>
+  <section class="step" data-chain="1" data-stop="border" data-kind="net" data-net="3" data-fig="Échanges aux frontières en temps réel. Source : Elia."><p><b>Les frontières</b>Le réseau belge est relié à la France, aux Pays-Bas, à l’Allemagne, au Luxembourg et, par un câble sous-marin, au Royaume-Uni. L’électricité circule dans les deux sens : la Belgique en <em>importe</em> lorsqu’elle en a besoin et en <em>exporte</em> lorsqu’elle en produit davantage. En 2025, elle a importé plus d’électricité qu’elle n’en a exporté. Ces échanges complètent la production belge, mais ils ne constituent pas une source d’électricité produite en Belgique.</p></section>
+  <section class="step" data-chain="2" data-stop="net" data-kind="net" data-net="1" data-fig="Réseau de transport à 380 et 220 kV, lignes aériennes. Données © contributeurs OpenStreetMap."><p><b>Le réseau</b>Tout cela se rejoint dans un même <em>réseau</em>. Vu d’en haut, il ressemble à un système routier. Les lignes à 380 000 et 220 000 volts en sont les autoroutes : elles traversent le pays et relient les grands points du réseau. C’est Elia, le gestionnaire du réseau de transport, qui les exploite.
+    <span class="volts"><i style="--c:#1f4fd8">380 kV</i><i style="--c:#b0369a">220 kV</i></span></p></section>
+  <section class="step" data-chain="2" data-stop="net" data-kind="net" data-net="2" data-fig="Lignes aériennes à 150 et 70 kV ajoutées. Données © contributeurs OpenStreetMap."><p>Depuis ces grandes lignes, d’autres lignes à 150 000 et 70 000 volts acheminent l’électricité vers les différentes régions. Dans notre image routière, elles ressemblent aux nationales. Plus près des habitations, le réseau passe à la <em>moyenne tension</em>, puis à la <em>basse tension</em> — 230 volts dans nos prises. Une partie de ces lignes passe sous terre : suivons-les jusqu’à la prise.
+    <span class="volts"><i style="--c:#1f4fd8">380 kV</i><i style="--c:#b0369a">220 kV</i><i style="--c:#d9822b">150 kV</i><i style="--c:#4e9a94">70 kV</i></span></p></section>
+  <section class="step" data-chain="2" data-cam="-95,20,55" data-kind="home" data-volt="0"><h2>De la ligne à la prise</h2></section>
+  <section class="step" data-chain="2" data-cam="12,8,45" data-kind="home" data-volt="1" data-fig="Poste de transformation. Schéma unifilaire : un seul trait figure les trois phases."><p><b>Le poste</b>Sur la ligne, le courant voyage à 380 000 volts. Pourquoi si haut ? Parce qu'à puissance égale, plus la tension est élevée, plus le courant est faible, et moins les câbles chauffent en route. Mais aucune maison ne supporterait ça. Alors, dans un <em>poste</em>, d'énormes transformateurs font descendre une première marche : de 380 000 à 150 000 volts.</p></section>
+  <section class="step" data-chain="3" data-cam="40,4,30" data-kind="home" data-volt="2" data-fig="Poste de répartition : de la haute à la moyenne tension."><p><b>Le poste de répartition</b>Le courant quitte ensuite les grandes lignes. Dans un poste de répartition, un transformateur le fait descendre d'une deuxième marche, jusqu'à environ 15 000 volts : la <em>moyenne tension</em>. Là, les gestionnaires de distribution prennent le relais : Fluvius en Flandre, ORES et Resa en Wallonie, Sibelga à Bruxelles. Et le câble passe sous terre.</p></section>
+  <section class="step" data-chain="3" data-cam="70,3,35" data-kind="home" data-volt="3" data-fig="Cabine de quartier et câbles enterrés, vue en coupe."><p><b>La cabine</b>La suite passe sous vos pieds. Des câbles enterrés mènent le courant jusqu'à une <em>cabine</em> de quartier : un petit bâtiment gris au coin d'une rue, que vous ne remarquez sans doute plus. À l'intérieur, un dernier transformateur fait descendre la dernière marche, de 15 000 à 230 volts : la <em>basse tension</em>. C'est lui qui alimente votre rue, et quelques rues autour.</p></section>
+  <section class="step" data-chain="3" data-cam="114,5,18" data-kind="home" data-volt="3" data-fig="Compteur. En amont, le réseau ; en aval, votre installation."><p><b>Le compteur</b>Le câble entre chez vous, souvent par la cave. Premier arrêt : le <em>compteur</em>. Il ne mesure pas le courant, mais l'énergie consommée, en kilowattheures. Un kilowattheure, c'est une bouilloire allumée pendant une demi-heure. Ou une ampoule LED de 5 watts pendant huit jours.</p></section>
+  <section class="step" data-chain="4" data-cam="124,8,18" data-kind="home" data-volt="3" data-fig="Tableau électrique : disjoncteurs et différentiels."><p><b>Le tableau</b>Puis le tableau électrique. Chaque disjoncteur protège un circuit : la cuisine, les chambres, le lave-linge. En cas de surcharge ou de court-circuit, il coupe le courant. Les <em>différentiels</em>, eux, détectent les fuites de courant. Certains circuits sont protégés par un différentiel de 30 milliampères : si une fuite atteint ce seuil, il coupe rapidement le courant. C’est une protection supplémentaire contre l’électrocution.</p></section>
+  <section class="step" data-chain="4" data-cam="146,1.5,9" data-kind="home" data-volt="3" data-fig="Prise de type E, avec broche de terre."><p><b>La prise</b>Enfin, la <em>prise</em>. Deux trous et, chez nous, une broche qui dépasse : la terre. Entre les deux trous, 230 volts. Tout ce voyage, du pylône au mur, pour que votre bouilloire chauffe.</p></section>
+  <section class="step" data-chain="4" data-cam="185,2,70" data-kind="home" data-volt="3"><h2>Dans l'appareil</h2></section>
+  <section class="step" data-chain="4" data-cam="160,4,16" data-kind="home" data-volt="3" data-fig="Bouilloire : résistance chauffante sous la cuve."><p><b>La chaleur</b>Branchez la bouilloire. Sous la cuve, le courant traverse une <em>résistance</em> qui chauffe. Cette chaleur passe à l’eau et la porte à ébullition : avec une bouilloire de 2 000 watts, il faut environ trois minutes pour chauffer un litre d’eau. Le grille-pain, le radiateur électrique et le fer à repasser utilisent le même principe : le courant produit de la chaleur en traversant une résistance.</p></section>
+  <section class="step" data-chain="4" data-cam="185,8,18" data-kind="home" data-volt="3" data-fig="Lampe à LED."><p><b>La lumière</b>Avant, les ampoules éclairaient en chauffant un fil jusqu’à le rendre lumineux. Elles perdaient beaucoup d’énergie en chaleur. Les <em>LED</em>, elles, produisent de la lumière avec beaucoup moins d’électricité : une LED de 5 watts peut éclairer autant qu’une ancienne ampoule de 40 watts.</p></section>
+  <section class="step" data-chain="4" data-cam="208,5,18" data-kind="home" data-volt="3" data-fig="Ventilateur : moteur électrique."><p><b>Le mouvement</b>Dans un ventilateur, un lave-linge ou un aspirateur, le courant fait tourner un <em>moteur</em>. À l’intérieur, des forces magnétiques mettent un axe en mouvement. C’est l’éolienne du début à l’envers : là-bas, le mouvement produit du courant ; ici, le courant produit du mouvement.</p></section>
+  <section class="step" data-chain="4" data-cam="114,5,13" data-kind="home" data-volt="3" data-fig="Compteur : l'énergie consommée s'additionne."><p><b>Le kilowattheure</b>Chaleur, lumière, mouvement : le compteur, lui, ne fait pas la différence. Il additionne tout, chaque watt, chaque seconde. Un ménage belge consomme en moyenne environ <em>3 500 kilowattheures</em> par an. Un peu moins de dix par jour.</p></section>
+  <section class="step" data-chain="5" data-cam="114,5,18" data-kind="home" data-volt="3" data-fig="Le compteur appartient au réseau ; le contrat, au fournisseur."><p><b>Le fournisseur</b>Le compteur appartient au réseau, mais le kilowattheure, vous l’achetez à un <em>fournisseur</em>. Engie, Luminus, TotalEnergies, Eneco, Mega et d’autres se font concurrence : c’est vous qui choisissez. Le contrat peut être à prix fixe, variable, ou dynamique, suivant le prix du marché heure par heure. Changer de fournisseur ne change rien aux câbles : c’est le même réseau, le même compteur.</p></section>
+  <section class="step" data-chain="R" data-cam="155,-20,330" data-kind="home" data-volt="3" data-fig="Régulateurs : CREG au niveau fédéral ; CWaPE, BRUGEL et VREG dans les Régions."><p><b>Les arbitres</b>Pour que chacun joue le jeu, des <em>régulateurs</em> veillent sur toute la chaîne. Au niveau fédéral, la CREG contrôle les tarifs du transport et surveille le marché. Dans les Régions, la CWaPE en Wallonie, BRUGEL à Bruxelles et le VREG en Flandre encadrent la distribution et protègent les consommateurs.</p></section>
+  <section class="step" data-chain="6" data-cam="155,-20,330" data-kind="home" data-volt="3" data-fig="Composition indicative d’une facture d’électricité résidentielle."><p><b>La facture</b>Votre facture rassemble tout ce parcours, en trois parts. Le <em>coût de l’énergie</em>, environ 40 à 50 % : le prix du kilowattheure fixé par votre fournisseur. Les <em>coûts de réseau</em>, environ 30 à 40 % : le transport par Elia et la distribution par votre GRD. Les <em>taxes et surcharges</em>, environ 15 à 20 % : TVA, accises fédérales, redevances régionales. Au total, de l’ordre de 30 à 40 centimes le kilowattheure. Votre bouilloire, trois minutes par jour : 36,5 kWh par an, environ 13 euros.
+    <span class="bill"><i style="--w:45%;--c:#1f4fd8">Énergie</i><i style="--w:35%;--c:#2e9b5f">Réseau</i><i style="--w:20%;--c:#98a2a8">Taxes</i></span></p></section>
+</article>
+<div id="fig"></div>
+<nav id="chain" aria-label="La chaîne de l’électricité">
+  <ol><li data-c="1">Produire</li><li data-c="2">Transporter</li><li data-c="3">Distribuer</li><li data-c="4">Consommer</li><li data-c="5">Fournir</li><li data-c="6">Payer</li></ol>
+  <p class="who"></p>
+</nav>
+<aside id="dash" class="glass" aria-label="Électricité en Belgique">
+  <div class="d-scroll">
+  <div class="d-tabs" role="tablist">
+    <button role="tab" aria-selected="true" data-tab="elec">Electricity</button><button role="tab" aria-selected="false" data-tab="co2">Émissions</button>
+  </div>
+  <section class="d-card">
+    <h3 class="d-title">Mix électrique</h3><p class="d-when">…</p>
+    <div class="d-kpis">
+      <div class="kpi"><span class="d-tile"><b class="v-co2">…</b>gCO₂eq/kWh</span><button class="info" data-tip="Grammes d'équivalent CO₂ par kilowattheure (gCO₂eq/kWh) : les émissions de gaz à effet de serre issues de la production d'électricité en Belgique, estimées avec les facteurs du GIEC." aria-label="À propos de l'intensité carbone">i</button><span class="lbl">Intensité carbone</span></div>
+      <div class="kpi"><span class="d-ring"><svg viewBox="0 0 100 100"><circle class="trk" cx="50" cy="50" r="40" pathLength="100"/><circle class="val v-low" cx="50" cy="50" r="40" pathLength="100"/></svg><b class="t-low">…</b></span><button class="info" data-tip="Part de la production issue du nucléaire et des énergies renouvelables." aria-label="À propos de la part bas carbone">i</button><span class="lbl">Bas carbone</span></div>
+      <div class="kpi"><span class="d-ring"><svg viewBox="0 0 100 100"><circle class="trk" cx="50" cy="50" r="40" pathLength="100"/><circle class="val v-ren" cx="50" cy="50" r="40" pathLength="100"/></svg><b class="t-ren">…</b></span><button class="info" data-tip="Part de la production issue de la biomasse, de l'hydraulique, du solaire, de l'éolien et de la géothermie." aria-label="À propos de la part renouvelable">i</button><span class="lbl">Renouvelable</span></div>
+    </div>
+    <div class="d-chart d-mix"></div>
+    <p class="d-axis"><span class="neg">Stockée ←</span><span>→ Produite</span></p>
+    <div class="d-chart d-flows"></div>
+    <p class="d-axis"><span class="neg">Exportée ←</span><span>→ Importée</span></p>
+    <p class="d-src"></p>
+  </section>
+  </div>
+</aside>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="liquid" x="0%" y="0%" width="100%" height="100%" filterUnits="objectBoundingBox">
+  <feTurbulence type="fractalNoise" baseFrequency="0.008 0.008" numOctaves="2" seed="92" result="noise"/>
+  <feGaussianBlur in="noise" stdDeviation="2" result="soft"/>
+  <feDisplacementMap in="SourceGraphic" in2="soft" scale="60" xChannelSelector="R" yChannelSelector="G"/>
+</filter></svg>
+<div id="timeline" class="glass">
+  <div class="tl-top"><p class="tl-when"><span class="tl-day">…</span><b class="tl-time">…</b></p>
+    <div class="tl-ctl"><button class="tl-gran" aria-haspopup="listbox" aria-expanded="false">15 min ▾</button>
+      <ul class="tl-menu" role="listbox" hidden><li role="option" data-g="1" aria-selected="true">15 min</li><li role="option" data-g="4" aria-selected="false">horaire</li></ul>
+      <button class="tl-play" aria-label="Lecture">▶</button><button class="tl-live" aria-label="Revenir aux dernières données">▶|</button></div></div>
+  <input class="tl-range" type="range" min="0" max="0" value="0" aria-label="Moment affiché">
+  <div class="tl-ticks"></div>
+</div>
+<div id="legend" class="glass" aria-hidden="true"><b>Intensité carbone</b><span class="grad"></span><span class="lg-n"><i>0</i><i>200</i><i>400</i><i>600</i><i>800</i></span><small>gCO₂eq/kWh</small></div>
+<div id="tip" class="glass" role="tooltip" hidden></div>
+<div id="pop" class="glass" hidden></div>
+<aside id="ladder" aria-hidden="true"><span class="mark"></span></aside>
+<div id="meter" aria-hidden="true">
+  <b></b>
+  <svg viewBox="0 0 200 106"><path class="track" d="M20 100 A80 80 0 0 1 180 100" pathLength="100"/><path class="val" d="M20 100 A80 80 0 0 1 180 100" pathLength="100"/></svg>
+  <small class="what"></small><small class="homes"></small>
+</div>
+<svg id="leader" aria-hidden="true"><polyline fill="none" stroke="#1b2430" stroke-width="1"/><circle r="3.5" fill="#1b2430"/></svg>
+<script type="importmap">
+  { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+history.scrollRestoration = 'manual'; scrollTo(0, 0); // a reload always starts on the title
+import RESEAU from './reseau.js'; // real overhead HV lines, © OpenStreetMap contributors
+import VOISINS from './voisins.js'; // neighbouring countries, Natural Earth
+
+const PAPER = 0xf2f4f3, INK = 0x1b2430, LINE = 0x5e6b74, ACCENT = 0x1f4fd8;
+// x, height at the pylon: 3 phases per side of a high-voltage line
+const PHASES = [[-6, 22], [6, 22], [-8, 18], [8, 18], [-6, 14], [6, 14]];
+const motion = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 1;
+const ss = (a, b, x) => { x = Math.min(1, Math.max(0, (x - a) / (b - a))); return x * x * (3 - 2 * x); };
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+document.body.prepend(renderer.domElement);
+const camera = new THREE.PerspectiveCamera(55, 1, 0.01, 2000);
+
+const tex = draw => { const c = document.createElement('canvas'); c.width = c.height = 64; draw(c.getContext('2d')); return new THREE.CanvasTexture(c); };
+const disc = tex(g => { g.fillStyle = '#fff'; g.beginPath(); g.arc(32, 32, 28, 0, 7); g.fill(); });
+const dots = (map, opts) => new THREE.PointsMaterial({ map, alphaTest: .5, ...opts });
+const segments = (arr, color) => {
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(arr, 3));
+  return new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color }));
+};
+const edges = (geo, color = INK, angle = 20) => new THREE.LineSegments(new THREE.EdgesGeometry(geo, angle), new THREE.LineBasicMaterial({ color }));
+const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
+const polyline = pts => { const c = new THREE.CurvePath(); for (let i = 1; i < pts.length; i++) c.add(new THREE.LineCurve3(pts[i - 1], pts[i])); return c; };
+
+// HTML annotations pinned to 3D anchors
+const tagsEl = document.getElementById('tags'), tags = [], v = new THREE.Vector3();
+function tag(scene, parent, x, y, z, text) {
+  const el = document.createElement('div'); el.className = 'tag'; el.innerHTML = `<span>${text}</span>`;
+  tagsEl.append(el);
+  const o = new THREE.Object3D(); o.position.set(x, y, z); parent.add(o);
+  const t = { el, o, scene, op: 0 }; tags.push(t); return t;
+}
+const placed = [];
+const overlap = (a, b) => a.l < b.r && b.l < a.r && a.t < b.b && b.t < a.b;
+function drawTags(scene) {
+  placed.length = 0;
+  // things labels must not cover: the note being read, and the live panel / voltage ladder when shown
+  const blocks = [steps[Math.round(sv)]?.querySelector('p, h2'), ...['ladder', 'meter', 'chain'].map(id => document.getElementById(id)).filter(e => e.style.opacity === '1'), ...(document.body.classList.contains('dash') ? [dash, timeline, legend] : [])]
+    .filter(Boolean).map(e => { const r = e.getBoundingClientRect(); return { l: r.left - 8, t: r.top - 8, r: r.right + 8, b: r.bottom + 8 }; });
+  for (const t of [...tags].sort((a, b) => b.el.classList.contains('big') - a.el.classList.contains('big'))) { // country names claim their place first
+    t.o.getWorldPosition(v);
+    const fogged = scene.fog && v.distanceTo(camera.position) > scene.fog.far; // lost in the fog: no floating label
+    v.project(camera);
+    const x = (v.x + 1) / 2 * innerWidth, y = (1 - v.y) / 2 * innerHeight;
+    let on = t.scene === scene && t.op > .01 && v.z < 1 && !fogged && x > 0 && x < innerWidth && y > 0 && y < innerHeight, dx = 0, dy = 0; // off-screen things keep no label
+    if (on) {
+      const sp = t.el.firstChild;
+      if (sp.textContent !== t.key) { t.key = sp.textContent; t.w = sp.offsetWidth; t.h = sp.offsetHeight; }
+      dx = Math.min(0, innerWidth - 40 - (x + 12 + t.w)); dy = Math.max(0, 40 - (y - 12 - t.h)); // keep the label box inside the sheet
+      const big = t.el.classList.contains('big'); if (big) dx = dy = 0; // country names are centred on their point
+      const box = () => big ? { l: x - t.w / 2, t: y - t.h / 2 + dy, r: x + t.w / 2, b: y + t.h / 2 + dy } : { l: x + 12 + dx, t: y - 12 - t.h + dy, r: x + 12 + t.w + dx, b: y - 12 + dy };
+      if (!big) for (let k = 0; k < 5 && placed.some(p => overlap(p, box())); k++) dy -= t.h + 6; // small labels step up past others; country names never leave their country
+      if (blocks.some(b => overlap(b, box())) || placed.some(p => overlap(p, box()))) on = false;
+      else placed.push(box());
+    }
+    const op = on ? t.op.toFixed(2) : '0';
+    if (op !== t.lastOp) t.el.style.opacity = t.lastOp = op;
+    if (!on) continue;
+    const tf = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`, sf = `translate(${dx.toFixed(0)}px,${dy.toFixed(0)}px)`;
+    if (tf !== t.lastTf) t.el.style.transform = t.lastTf = tf;
+    if (sf !== t.lastSf) t.el.firstChild.style.transform = t.lastSf = sf;
+  }
+}
+
+// lattice pylon in the x-y plane (arms along x), 26 units tall
+function pylon(arr, z) {
+  arr.push(-3, 0, z, -1, 26, z, 3, 0, z, 1, 26, z);
+  for (const [y, w] of [[22, 6], [18, 8], [14, 6]]) arr.push(-w, y, z, w, y, z, -w, y, z, 0, y + 2, z, w, y, z, 0, y + 2, z);
+  for (let y = 0; y < 22; y += 4) arr.push(-3 + y / 13, y, z, 3 - (y + 4) / 13, y + 4, z);
+}
+
+const M = new THREE.Scene();
+
+// ── Scene B: from the line to the socket, single-line diagram in section (axis = x) ──
+const B = new THREE.Scene();
+B.fog = new THREE.Fog(PAPER, 200, 500);
+const put = (o, x, y, z = 0) => { o.position.set(x, y, z); B.add(o); return o; };
+const box = (w, h, d, x, y, z = 0, color) => put(edges(new THREE.BoxGeometry(w, h, d), color), x, y, z);
+const poly = (pts, color = INK) => B.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts.map(p => V3(...p))), new THREE.LineBasicMaterial({ color })));
+const circ = (r, x, y, z) => { const pts = []; for (let a = 0; a <= 32; a++) pts.push([x + r * Math.cos(a / 16 * Math.PI), y + r * Math.sin(a / 16 * Math.PI), z]); poly(pts); };
+
+// ground cut: surface line + 45° hatching, and the line's last pylons
+const hatch = [];
+for (let x = -200; x < 240; x += 1.5) hatch.push(x, -7, 0, x + 7, 0, 0);
+B.add(segments(hatch, 0xd3dadb));
+poly([[-200, 0, 0], [240, 0, 0]]);
+const tw = []; pylon(tw, 0);
+for (const x of [-140, -60, -30]) put(segments(tw, INK), x, 0).rotation.y = Math.PI / 2;
+
+// rotors (wind turbines, fan): n blade outlines, spun in the loop
+const rotors = [];
+function blades(r, n, w) {
+  const a = [];
+  for (let i = 0; i < n; i++) {
+    const t = i / n * Math.PI * 2, p = (u, dt) => [u * r * Math.cos(t + dt), u * r * Math.sin(t + dt), 0];
+    a.push(0, 0, 0, ...p(.3, w), ...p(.3, w), ...p(1, 0), ...p(1, 0), ...p(.3, -w), ...p(.3, -w), 0, 0, 0);
+  }
+  return segments(a, INK);
+}
+const rotor = (x, y, z, r, n, w) => rotors.push(put(blades(r, n, w), x, y, z));
+
+poly([[0, 0, -9], [0, 16, -9], [0, 16, 9], [0, 0, 9]]);
+box(8, 7, 8, 14, 3.5); box(2, 5, 7, 19, 3.5);
+for (const z of [-2.5, 0, 2.5]) put(edges(new THREE.CylinderGeometry(.4, .4, 3, 8)), 12, 8.5, z);
+// neighbourhood cabin
+box(8, 7, 6, 70, 3.5); box(9, .6, 7, 70, 7.3); poly([[68, 0, 3], [68, 5, 3], [72, 5, 3], [72, 0, 3]]);
+// distribution substation: 150 kV in, 15 kV out
+box(8, 5, 6, 40, 2.5); box(3, 3, 3, 40, 6.5); for (const z of [-1, 1]) put(edges(new THREE.CylinderGeometry(.3, .3, 2, 8)), 38.5, 9, z);
+// house, meter, board (breakers + differential), type E socket
+box(126, 18, 12, 167, 9);
+for (const z of [-6, 6]) poly([[104, 18, z], [167, 32, z], [230, 18, z]]);
+poly([[167, 32, -6], [167, 32, 6]]);
+box(2.4, 3.4, 1, 114, 4.5); box(1.6, .8, .2, 114, 5.2, .6, ACCENT);
+box(6, 7, 1, 124, 8.5); box(2.2, 1.4, .4, 124, 10.4, .6, ACCENT);
+for (let i = 0; i < 6; i++) box(.6, 1.4, .4, 121.75 + i * .9, 7.4, .6);
+box(2.4, 2.4, .3, 146, 1.5); circ(.9, 146, 1.5, .2); circ(.18, 145.4, 1.3, .2); circ(.18, 146.6, 1.3, .2);
+put(edges(new THREE.CylinderGeometry(.12, .12, .6, 6)), 146, 2, .45).rotation.x = Math.PI / 2;
+// appliances: kettle + heat waves, LED lamp + rays, fan
+const HOT = 0xd2352b;
+put(edges(new THREE.CylinderGeometry(1.6, 2, 4, 12)), 160, 2); poly([[158, 3.2, 0], [157, 4.2, 0]]);
+const waves = [0, 1, 2].map(i => { const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints(Array.from({ length: 12 }, () => V3())), new THREE.LineBasicMaterial({ color: HOT })); B.add(l); return l; });
+poly([[185, 0, 0], [185, 9.8, 0]]); circ(1.2, 185, 11, 0);
+const rays = [];
+for (let i = 0; i < 10; i++) { const t = i / 10 * Math.PI * 2; rays.push(1.8 * Math.cos(t), 1.8 * Math.sin(t), 0, 2.8 * Math.cos(t), 2.8 * Math.sin(t), 0); }
+const rayLines = put(segments(rays, HOT), 185, 11);
+poly([[208, 0, 0], [208, 6, 0]]); circ(3.4, 208, 6, .3); rotor(208, 6, .2, 3, 4, .35);
+
+// the conductor, and the charges flowing along it
+// the conductor, each stretch in the colour of its voltage: 380 kV, 150 kV, 15 kV, 230 / 400 V
+const ROUTE = [[[-200, 22], [-30, 22], [0, 16], [12, 10], [14, 7]], [[14, 7], [24, 6], [38.5, 8], [38.5, 5]], [[38.5, 5], [44, 3], [44, -3], [66, -3], [66, 3]],
+  [[66, 3], [74, 3], [74, -3], [112, -3], [112, 4.5], [124, 4.5], [124, 14], [146, 14], [146, 2.7]]];
+const VCOL = [0x1f4fd8, 0xd9822b, 0x2e9b5f, 0x6b7a1a];
+ROUTE.forEach((part, i) => B.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(part.map(([x, y]) => V3(x, y, 0))), new THREE.LineBasicMaterial({ color: VCOL[i] }))));
+const routePts = ROUTE.flatMap((part, i) => (i ? part.slice(1) : part)).map(([x, y]) => V3(x, y, 0));
+// feeders from each source up to the line, branches from the wall conductor down to each appliance
+const routes = [routePts, [[146, 14, 0], [160, 14, 0], [160, 4, 0]], [[160, 14, 0], [185, 14, 0], [185, 12.2, 0]],
+  [[185, 14, 0], [208, 14, 0], [208, 9.4, 0]]].map(r => polyline(r.map(p => Array.isArray(p) ? V3(...p) : p)));
+for (const r of routes.slice(1)) B.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(r.getPoints(1)), new THREE.LineBasicMaterial({ color: LINE })));
+const lens = routes.map(r => r.getLength()), total = lens.reduce((a, b) => a + b);
+// particles spread over the routes in proportion to their length
+// spaced out so they read as moving charges, each in the colour of the voltage it is travelling at
+const Q = 320, qr = new Uint8Array(Q), qu = Float32Array.from({ length: Q }, Math.random), qp = new Float32Array(Q * 3), qc = new Float32Array(Q * 3);
+for (let i = 0, acc = 0, r = 0; i < Q; i++) { while ((acc + lens[r]) / total < i / Q) acc += lens[r++]; qr[i] = r; }
+const partEnds = []; { let acc = 0; for (const part of ROUTE) { for (let i = 1; i < part.length; i++) acc += Math.hypot(part[i][0] - part[i - 1][0], part[i][1] - part[i - 1][1]); partEnds.push(acc / lens[0]); } }
+const qCol = new THREE.Color(), voltAt = (r, u) => r > 0 ? 3 : partEnds.findIndex(e => u <= e + 1e-6); // branches to appliances are 230 V
+const routeGeo = new THREE.BufferGeometry();
+routeGeo.setAttribute('position', new THREE.BufferAttribute(qp, 3));
+routeGeo.setAttribute('color', new THREE.BufferAttribute(qc, 3));
+B.add(new THREE.Points(routeGeo, dots(disc, { size: 6, sizeAttenuation: false, vertexColors: true })));
+
+const tagsB = [[-50, 22, 0, '380 kV'], [14, 7, 4, '380 kV → 150 kV'], [40, 8, 3, '150 kV → 15 kV'], [55, -3, 0, 'moyenne tension, 15 kV, sous terre'], [70, 7.6, 3, '15 kV → 230 / 400 V'],
+  [92, -3, 0, 'basse tension, 230 / 400 V'], [114, 6.2, .6, 'compteur'], [124, 11.1, .8, 'différentiel'], [146, 2.7, .3, 'prise type E'], [160, 4, 2, 'chaleur'], [186, 12, 0, 'lumière'], [211, 8, .3, 'mouvement']].map(([x, y, z, t]) => Object.assign(tag(B, B, x, y, z, t), { op: 1 })); // only drawn while B is on screen
+const tagMeter = tagsB.find(t => t.el.textContent === 'compteur');
+let kwh = 4213.7;
+
+// ── Scene M: map of Belgium, lon/lat → x/z (equirectangular, 1° of latitude = 60 units) ──
+M.fog = new THREE.Fog(PAPER, 250, 800);
+const KM = 60, LON0 = 4.5, LAT0 = 50.5, CL = Math.cos(LAT0 * Math.PI / 180);
+const mx = lon => (lon - LON0) * CL * KM, mz = lat => -(lat - LAT0) * KM;
+const mline = (pts, color = INK, y = .05) => M.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts.map(([lo, la]) => V3(mx(lo), y, mz(la)))), new THREE.LineBasicMaterial({ color })));
+const mput = (o, lon, lat, y = 0) => { o.position.set(mx(lon), y, mz(lat)); M.add(o); return o; };
+const ad = (g, o, x = 0, y = 0, z = 0) => { o.position.set(x, y, z); g.add(o); return o; };
+
+// Belgian border (Natural Earth, via mledoze/countries)
+const BORDER = [[4.302,51.263],[4.310,51.262],[4.328,51.290],[4.290,51.308],[4.283,51.317],[4.280,51.344],[4.261,51.355],[4.252,51.375],[4.280,51.377],[4.347,51.362],[4.359,51.360],[4.388,51.357],[4.407,51.358],[4.419,51.359],[4.428,51.362],[4.432,51.364],[4.438,51.375],[4.436,51.379],[4.418,51.398],[4.401,51.411],[4.397,51.417],[4.394,51.450],[4.397,51.453],[4.482,51.479],[4.487,51.481],[4.540,51.486],[4.546,51.485],[4.549,51.483],[4.551,51.479],[4.550,51.475],[4.545,51.463],[4.543,51.459],[4.538,51.452],[4.535,51.444],[4.535,51.440],[4.537,51.432],[4.542,51.427],[4.547,51.426],[4.645,51.423],[4.651,51.423],[4.671,51.428],[4.673,51.431],[4.671,51.434],[4.669,51.441],[4.671,51.444],[4.699,51.464],[4.706,51.469],[4.757,51.497],[4.769,51.503],[4.781,51.504],[4.788,51.503],[4.807,51.499],[4.826,51.492],[4.846,51.481],[4.846,51.477],[4.845,51.461],[4.833,51.430],[4.853,51.414],[4.930,51.399],[4.936,51.399],[4.940,51.401],[4.956,51.410],[4.989,51.431],[5.000,51.438],[5.009,51.446],[5.013,51.454],[5.015,51.472],[5.017,51.476],[5.024,51.481],[5.036,51.487],[5.041,51.487],[5.073,51.472],[5.080,51.467],[5.096,51.446],[5.104,51.435],[5.103,51.431],[5.101,51.427],[5.089,51.415],[5.086,51.413],[5.080,51.407],[5.078,51.403],[5.077,51.399],[5.077,51.395],[5.079,51.392],[5.083,51.386],[5.140,51.321],[5.144,51.319],[5.155,51.316],[5.168,51.314],[5.189,51.319],[5.194,51.320],[5.201,51.320],[5.223,51.314],[5.234,51.311],[5.237,51.308],[5.239,51.305],[5.239,51.262],[5.330,51.262],[5.400,51.266],[5.406,51.266],[5.411,51.267],[5.468,51.283],[5.476,51.287],[5.486,51.295],[5.497,51.296],[5.504,51.295],[5.511,51.294],[5.521,51.291],[5.550,51.272],[5.553,51.270],[5.558,51.264],[5.568,51.221],[5.645,51.204],[5.754,51.190],[5.834,51.166],[5.849,51.156],[5.855,51.151],[5.855,51.148],[5.851,51.142],[5.848,51.139],[5.818,51.115],[5.777,51.026],[5.764,50.990],[5.758,50.960],[5.657,50.880],[5.650,50.877],[5.641,50.863],[5.639,50.859],[5.638,50.850],[5.638,50.847],[5.641,50.840],[5.652,50.825],[5.656,50.822],[5.684,50.811],[5.694,50.809],[5.702,50.806],[5.705,50.786],[5.706,50.782],[5.701,50.774],[5.692,50.761],[5.699,50.758],[5.737,50.759],[5.742,50.760],[5.798,50.769],[5.871,50.761],[5.899,50.754],[5.926,50.756],[6.012,50.757],[6.055,50.724],[6.167,50.656],[6.269,50.624],[6.271,50.621],[6.272,50.619],[6.271,50.616],[6.248,50.589],[6.265,50.498],[6.309,50.498],[6.317,50.496],[6.334,50.490],[6.344,50.484],[6.371,50.448],[6.374,50.443],[6.374,50.441],[6.398,50.323],[6.350,50.313],[6.281,50.284],[6.173,50.232],[6.166,50.224],[6.164,50.221],[6.140,50.154],[6.134,50.128],[6.120,50.132],[6.034,50.159],[6.031,50.161],[6.029,50.166],[6.026,50.181],[6.022,50.182],[6.014,50.181],[5.976,50.171],[5.970,50.169],[5.892,50.106],[5.889,50.104],[5.887,50.099],[5.883,50.081],[5.883,50.077],[5.834,49.987],[5.791,49.962],[5.777,49.958],[5.775,49.956],[5.771,49.952],[5.748,49.907],[5.734,49.835],[5.747,49.795],[5.748,49.793],[5.751,49.791],[5.765,49.790],[5.790,49.781],[5.869,49.720],[5.876,49.710],[5.899,49.663],[5.900,49.641],[5.863,49.572],[5.838,49.550],[5.834,49.549],[5.808,49.545],[5.792,49.546],[5.702,49.543],[5.632,49.536],[5.593,49.526],[5.531,49.511],[5.514,49.509],[5.478,49.504],[5.473,49.506],[5.470,49.509],[5.464,49.518],[5.465,49.522],[5.474,49.531],[5.476,49.534],[5.476,49.538],[5.474,49.541],[5.438,49.600],[5.427,49.607],[5.415,49.613],[5.399,49.621],[5.392,49.623],[5.331,49.657],[4.997,49.802],[4.984,49.805],[4.959,49.802],[4.945,49.794],[4.935,49.791],[4.924,49.789],[4.913,49.789],[4.907,49.790],[4.873,49.797],[4.864,49.807],[4.821,49.993],[4.839,50.069],[4.853,50.096],[4.881,50.126],[4.883,50.129],[4.888,50.131],[4.894,50.136],[4.895,50.140],[4.883,50.155],[4.833,50.169],[4.819,50.167],[4.815,50.166],[4.763,50.136],[4.697,50.091],[4.693,50.083],[4.688,50.071],[4.688,50.067],[4.694,50.062],[4.697,50.056],[4.694,50.042],[4.680,50.002],[4.674,49.996],[4.511,49.947],[4.464,49.939],[4.458,49.939],[4.446,49.941],[4.430,49.945],[4.413,49.949],[4.317,49.970],[4.248,49.964],[4.231,49.962],[4.215,49.960],[4.183,49.976],[4.174,49.980],[4.149,49.978],[4.147,50.010],[4.171,50.137],[4.194,50.237],[4.165,50.283],[4.038,50.356],[4.033,50.356],[3.984,50.345],[3.890,50.340],[3.775,50.354],[3.677,50.395],[3.672,50.433],[3.671,50.441],[3.669,50.444],[3.661,50.456],[3.658,50.459],[3.654,50.462],[3.620,50.490],[3.608,50.496],[3.518,50.519],[3.457,50.511],[3.453,50.509],[3.373,50.495],[3.367,50.496],[3.299,50.523],[3.296,50.526],[3.280,50.538],[3.279,50.542],[3.243,50.660],[3.242,50.668],[3.198,50.727],[3.187,50.747],[3.183,50.757],[3.165,50.781],[3.162,50.784],[3.154,50.788],[3.150,50.790],[3.143,50.791],[3.116,50.792],[3.051,50.780],[3.042,50.777],[3.027,50.770],[3.020,50.771],[3.009,50.769],[2.961,50.758],[2.943,50.741],[2.898,50.703],[2.868,50.713],[2.782,50.756],[2.651,50.816],[2.598,50.926],[2.598,50.996],[2.542,51.091],[2.551,51.092],[2.560,51.096],[2.863,51.213],[2.955,51.250],[3.020,51.276],[3.095,51.311],[3.113,51.318],[3.132,51.324],[3.180,51.336],[3.371,51.374],[3.374,51.310],[3.379,51.277],[3.381,51.274],[3.388,51.269],[3.434,51.246],[3.439,51.244],[3.452,51.242],[3.466,51.242],[3.484,51.243],[3.521,51.248],[3.524,51.251],[3.524,51.263],[3.522,51.274],[3.521,51.277],[3.520,51.281],[3.521,51.286],[3.525,51.288],[3.596,51.304],[3.601,51.305],[3.608,51.304],[3.669,51.293],[3.783,51.265],[3.793,51.262],[3.796,51.259],[3.791,51.237],[3.791,51.233],[3.794,51.223],[3.796,51.220],[3.806,51.217],[3.890,51.206],[3.897,51.205],[3.904,51.206],[3.953,51.214],[4.062,51.252],[4.128,51.279],[4.161,51.294],[4.173,51.301],[4.215,51.330],[4.228,51.341],[4.239,51.350],[4.256,51.336],[4.264,51.317],[4.281,51.301],[4.309,51.290],[4.312,51.287],[4.313,51.284],[4.300,51.268]];
+const BP = BORDER.map(([lo, la]) => [mx(lo), mz(la)]);
+const shape = new THREE.Shape(BP.map(([x, z]) => new THREE.Vector2(x, -z)));
+const land = new THREE.Mesh(new THREE.ShapeGeometry(shape), new THREE.MeshBasicMaterial({ color: 0xe5eae9 }));
+const slab = edges(new THREE.ExtrudeGeometry(shape, { depth: 1.5, bevelEnabled: false }), INK, 40);
+land.rotation.x = slab.rotation.x = -Math.PI / 2; slab.position.y = -1.5;
+M.add(land, slab);
+const neighbours = new THREE.Group(), neighbourMeshes = [];
+for (const [name, rings] of Object.entries(VOISINS)) for (const flat of rings) {
+  const pts = []; for (let i = 0; i < flat.length; i += 2) pts.push(new THREE.Vector2(mx(flat[i]), -mz(flat[i + 1])));
+  const fill = new THREE.Mesh(new THREE.ShapeGeometry(new THREE.Shape(pts)), new THREE.MeshBasicMaterial({ color: 0xebeeee }));
+  fill.rotation.x = -Math.PI / 2; fill.position.y = -.05; fill.userData.name = name;
+  const edge = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts.map(p => V3(p.x, -.04, -p.y))), new THREE.LineBasicMaterial({ color: LINE }));
+  fill.material.transparent = edge.material.transparent = true;
+  neighbours.add(fill, edge); neighbourMeshes.push(fill);
+}
+neighbours.visible = false; M.add(neighbours);
+// graticule, rivers, cities
+for (let lo = 2.5; lo <= 6.5; lo += .5) mline([[lo, 49.3], [lo, 51.9]], 0xd3dadb, -1.6);
+for (let la = 49.5; la <= 51.75; la += .25) mline([[2.3, la], [6.7, la]], 0xd3dadb, -1.6);
+const RIVER = 0x0e8fa3;
+mline([[4.83, 50.15], [4.91, 50.26], [4.87, 50.46], [5.05, 50.49], [5.24, 50.52], [5.45, 50.58], [5.57, 50.63], [5.69, 50.74], [5.70, 50.85], [5.76, 51.03]], RIVER);
+mline([[3.27, 50.55], [3.39, 50.61], [3.60, 50.85], [3.72, 51.05], [4.10, 51.03], [4.40, 51.22], [4.30, 51.37]], RIVER);
+const mtags = [];
+const mtag = (kind, lon, lat, y, text) => { const t = tag(M, M, mx(lon), y, mz(lat), text); t.kind = kind; mtags.push(t); return t; };
+const cross = [];
+for (const [name, lo, la] of [['Bruxelles', 4.35, 50.85], ['Anvers', 4.40, 51.22], ['Gand', 3.72, 51.05], ['Liège', 5.57, 50.63], ['Namur', 4.87, 50.47], ['Charleroi', 4.44, 50.41], ['Bruges', 3.22, 51.21]]) {
+  cross.push(mx(lo) - .8, .1, mz(la), mx(lo) + .8, .1, mz(la), mx(lo), .1, mz(la) - .8, mx(lo), .1, mz(la) + .8);
+  mtag('city', lo, la, .1, name);
+}
+M.add(segments(cross, INK));
+for (const lo of [3, 4, 5, 6]) mtag('grid', lo, 49.3, -1.6, lo + '°E');
+for (const la of [50, 51]) mtag('grid', 2.3, la, -1.6, la + '°N');
+mtag('city', 2.55, 51.45, 0, 'Mer du Nord');
+
+// installation models, built in metres then scaled onto the map (heights exaggerated about 50×)
+const MS = .03, mrot = [];
+const E = (g, geo, x = 0, y = 0, z = 0, color = INK, a = 20) => ad(g, edges(geo, color, a), x, y, z);
+const S = (g, arr, color = INK) => g.add(segments(arr, color));
+const boxAt = (g, w, h, d, x, z, y = 0, color) => E(g, new THREE.BoxGeometry(w, h, d), x, y + h / 2, z, color);
+const cyl = (g, r0, r1, h, x, z, y = 0, n = 12) => E(g, new THREE.CylinderGeometry(r1, r0, h, n), x, y + h / 2, z);
+const dome = (g, r, x, y, z) => E(g, new THREE.SphereGeometry(r, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), x, y, z, INK, 10);
+const ring = (g, r, x, y, z, color = INK) => {
+  const a = [];
+  for (let i = 0; i < 32; i++) { const t0 = i / 32 * Math.PI * 2, t1 = (i + 1) / 32 * Math.PI * 2; a.push(x + r * Math.cos(t0), y, z + r * Math.sin(t0), x + r * Math.cos(t1), y, z + r * Math.sin(t1)); }
+  S(g, a, color);
+};
+const water = (g, r, x, y, z) => {
+  const m = ad(g, new THREE.Mesh(new THREE.CircleGeometry(r, 32), new THREE.MeshBasicMaterial({ color: ACCENT, transparent: true, opacity: .15, depthWrite: false, side: THREE.DoubleSide })), x, y, z);
+  m.rotation.x = -Math.PI / 2;
+};
+function lattice(g, x, z, h, b0, b1) { // tapered four-leg tower with zigzag bracing
+  const a = [], w = y => b0 + (b1 - b0) * y / h, C = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
+  for (const [p, q] of C) a.push(x + p * b0, 0, z + q * b0, x + p * b1, h, z + q * b1);
+  for (let y = 0; y < h - 1e-6; y += h / 6) for (let i = 0; i < 4; i++) {
+    const [p, q] = C[i], [p2, q2] = C[(i + 1) % 4], y2 = y + h / 6;
+    a.push(x + p * w(y), y, z + q * w(y), x + p2 * w(y2), y2, z + q2 * w(y2));
+  }
+  S(g, a);
+}
+const MODEL = {
+  nuc(g) { // cooling towers, reactor buildings, turbine hall, switchyard
+    const p = []; for (let y = 0; y <= 165; y += 15) p.push(new THREE.Vector2(35 * Math.sqrt(1 + ((y - 120) / 86) ** 2), y));
+    for (const z of [-75, 75]) E(g, new THREE.LatheGeometry(p, 24), -170, 0, z, INK, 5);
+    for (const z of [-45, 45]) { cyl(g, 30, 30, 50, 0, z, 0, 16); dome(g, 30, 0, 50, z); }
+    boxAt(g, 120, 35, 45, 100, 0); boxAt(g, 30, 20, 30, 25, 0);
+    for (let i = 0; i < 4; i++) lattice(g, 200 + i * 25, 70, 30, 3, 1);
+  },
+  gas(g) { // gas-turbine hall, two heat-recovery boilers + stacks, air-cooled condenser, tanks
+    boxAt(g, 70, 28, 40, 0, 0);
+    for (const z of [-30, 30]) { boxAt(g, 45, 35, 18, 70, z); cyl(g, 4, 3.5, 70, 100, z); }
+    boxAt(g, 60, 3, 40, -80, 0, 20);
+    S(g, [-110, 0, -20, -110, 20, -20, -50, 0, -20, -50, 20, -20, -110, 0, 20, -110, 20, 20, -50, 0, 20, -50, 20, 20]);
+    for (let i = 0; i < 3; i++) for (const z of [-10, 10]) ring(g, 8, -100 + i * 20, 23.2, z);
+    cyl(g, 12, 12, 14, -40, 60, 0, 16); cyl(g, 12, 12, 14, -10, 60, 0, 16);
+  },
+  wind(g, sea = false) { // (monopile + transition piece at sea) tapered tower, nacelle, rotor
+    const y0 = sea ? 6 : 0;
+    if (sea) { cyl(g, 3.5, 3.5, 30, 0, 0, -30); boxAt(g, 8, 6, 8, 0, 0, 0, ACCENT); }
+    cyl(g, 3, 2, 100, 0, 0, y0, 10);
+    boxAt(g, 5, 5, 14, 0, -2, y0 + 97.5);
+    mrot.push(ad(g, blades(60, 3, .05), 0, y0 + 100, 5.5));
+  },
+  sea(g) { MODEL.wind(g, true); },
+  solar(g) { // tilted panel rows on legs, inverters, fence
+    for (let r = 0; r < 8; r++) {
+      const z = -70 + r * 20;
+      E(g, new THREE.BoxGeometry(200, 1, 9), 0, 4, z).rotation.x = -.45;
+      for (let x = -95; x <= 95; x += 38) S(g, [x, 0, z - 3, x, 2.5, z - 3, x, 0, z + 3, x, 5.5, z + 3]);
+    }
+    boxAt(g, 8, 4, 5, 118, -30); boxAt(g, 8, 4, 5, 118, 30);
+    S(g, [-110, 0, -85, 128, 0, -85, 128, 0, -85, 128, 0, 85, 128, 0, 85, -110, 0, 85, -110, 0, 85, -110, 0, -85], LINE);
+  },
+  hydro(g) { // Coo: hill with upper basin, twin penstocks, power station, lower basin
+    E(g, new THREE.CylinderGeometry(160, 300, 240, 16, 1, true), 0, 120, 0, INK, 10);
+    cyl(g, 120, 120, 12, 0, 0, 240, 24); water(g, 118, 0, 250, 0);
+    for (const z of [-10, 10]) S(g, [110, 245, z, 340, 10, z], ACCENT);
+    boxAt(g, 40, 30, 50, 350, 0);
+    water(g, 140, 520, .5, 0); ring(g, 140, 520, .5, 0);
+  },
+  mini(g) { // run-of-river: weir with gates, power house
+    boxAt(g, 150, 10, 12, 0, 0);
+    for (let x = -60; x <= 60; x += 30) S(g, [x, 10, -6, x, 18, -6, x, 18, -6, x, 18, 6, x, 18, 6, x, 10, 6]);
+    boxAt(g, 40, 20, 30, 95, 0);
+  },
+  bio(g) { // pellet domes, conveyor, boiler house, stack, turbine building
+    for (const x of [-120, -60]) dome(g, 25, x, 0, 0);
+    S(g, [-40, 5, 0, 22, 50, 0, -40, 10, 0, 22, 55, 0]);
+    boxAt(g, 45, 65, 40, 45, 0); cyl(g, 4, 3, 95, 90, -15); boxAt(g, 50, 25, 30, 115, 30);
+  },
+  farm(g) { // biogas digesters with gas domes, engine room
+    for (const x of [-18, 18]) { cyl(g, 14, 14, 8, x, 0, 0, 16); dome(g, 14, x, 8, 0); }
+    boxAt(g, 12, 6, 8, 0, 26);
+  },
+  waste(g) { // waste bunker + crane rails, boiler, flue-gas treatment, stack
+    boxAt(g, 80, 35, 45, -40, 0);
+    S(g, [-80, 33, -22, 0, 33, -22, -80, 33, 22, 0, 33, 22]);
+    boxAt(g, 30, 50, 35, 15, 0); boxAt(g, 45, 25, 25, 60, 0); cyl(g, 4, 3, 85, 95, 0);
+  },
+  geo(g) { // drilling derrick, ORC units, well with depth ticks (not to scale)
+    lattice(g, 0, 0, 55, 6, 1.5); boxAt(g, 20, 4, 20, 0, 0);
+    boxAt(g, 30, 10, 14, 50, -12); boxAt(g, 30, 10, 14, 50, 12);
+    S(g, [15, 3, 0, 35, 3, -12, 15, 3, 0, 35, 3, 12]);
+    const w = [0, 0, 0, 0, -600, 0]; for (let d = 100; d <= 600; d += 100) w.push(-6, -d, 0, 6, -d, 0);
+    S(g, w, ACCENT);
+  },
+};
+const TOP = { nuc: 165, gas: 70, wind: 160, sea: 166, solar: 10, hydro: 130, mini: 20, bio: 95, farm: 20, waste: 85, geo: 55 };
+const KIND = { mini: 'hydro', farm: 'bio', sea: 'wind', solar: 'sun' };
+// each energy type has its own layer colour; its installations take it on while we're stopped in front of them
+const KCOLOR = { nuc: 0xd2352b, gas: 0xe0701b, wind: 0x2e9b5f, sun: 0xc99a00, hydro: 0x0e8fa3, bio: 0x7a8b1f, waste: 0x9b4fb0, geo: 0xb0562a };
+const tinted = []; // { kind, mats: [[material, base colour]], amt }
+const CCGT = 'Centrale au gaz à cycle combiné.', RIVER_PLANT = "Centrale au fil de l'eau sur la Meuse.", INCIN = 'Incinérateur avec valorisation énergétique : la chaleur des déchets fait tourner une turbine.';
+const SITES = [
+  ['nuc', 4.26, 51.32, 'Doel', 'Centrale nucléaire au bord de l\'Escaut. Quatre réacteurs construits, Doel 4 prolongé jusqu\'en 2035.'],
+  ['nuc', 5.27, 50.53, 'Tihange', 'Centrale nucléaire au bord de la Meuse. Trois réacteurs construits, Tihange 3 prolongé jusqu\'en 2035.'],
+  ['gas', 4.43, 50.93, 'Vilvoorde', CCGT], ['gas', 5.51, 50.60, 'Seraing', CCGT], ['gas', 3.82, 50.45, 'Saint-Ghislain', CCGT], ['gas', 3.23, 51.26, 'Bruges', CCGT],
+  ['hydro', 5.87, 50.39, 'Coo', 'Pompage-turbinage : deux bassins, plus de 1 000 MW mobilisables en quelques minutes.'],
+  ['mini', 5.09, 50.49, 'Andenne', RIVER_PLANT], ['mini', 5.45, 50.59, 'Ivoz-Ramet', RIVER_PLANT], ['mini', 5.67, 50.75, 'Lixhe', RIVER_PLANT],
+  ['bio', 3.78, 51.13, 'Biomasse, port de Gand', 'Centrale à granulés de bois. Emplacement indicatif.'],
+  ['farm', 2.9, 50.95, 'Biogaz, Flandre-Occidentale', 'Biométhanisation à la ferme : lisier et déchets verts. Emplacement indicatif.'], ['farm', 3.1, 50.83], ['farm', 3.35, 51.0], ['farm', 4.9, 51.1],
+  ['waste', 4.38, 50.89, 'Incinérateur, Bruxelles', INCIN], ['waste', 5.63, 50.68, 'Incinérateur, Herstal', INCIN], ['waste', 4.37, 51.16, 'Incinérateur, Anvers', INCIN],
+  ['geo', 5.09, 51.21, 'Mol', 'Géothermie profonde : un forage de plus de 3 km vers une eau à plus de 120 °C. Surtout de la chaleur, un peu d\'électricité.'],
+  ['solar', 4.95, 50.78, 'Parc solaire', 'Parc solaire au sol (illustratif). En Belgique, la plupart des panneaux sont sur les toits.'],
+  ['wind', 4.30, 51.29, "Éoliennes, port d'Anvers", 'Éoliennes terrestres.'], ['wind', 4.1, 50.41, 'Éoliennes, Estinnes', 'Éoliennes terrestres.'],
+  ...[[4.34, 51.31], [3.80, 51.17], [3.84, 51.19], [3.5, 51.05], [3.95, 51.0], [4.13, 50.43], [3.95, 50.52], [4.8, 50.35], [5.0, 50.22], [5.3, 50.1], [5.6, 50.3], [4.6, 50.6], [5.3, 51.05]]
+    .map(([lo, la]) => ['wind', lo, la]),
+  ...Array.from({ length: 14 }, (_, i) => ['sea', 2.62 + (i % 5) * .12, 51.55 + Math.floor(i / 5) * .07,
+    i === 7 ? 'Éolien en mer du Nord' : undefined, 'Zone éolienne en mer : près de 400 turbines, à plus de 20 km de la côte.']),
+];
+// how each installation works: flows of heat / water / air / current, steam and smoke puffs, spinning turbines, breathing domes
+const FLOWS = [], PUFFS = [], BREATH = [];
+const flow = (g, kind, n, speed, ...pts) => { const c = polyline(pts.map(p => g.localToWorld(V3(...p)))); FLOWS.push({ c, kind, n, speed, len: c.getLength() }); };
+const puff = (g, x, y, z, h = 90) => PUFFS.push({ at: g.localToWorld(V3(x, y, z)), h: h * g.scale.x });
+const spin = (g, r, n, x, y, z) => { mrot.push(ad(g, blades(r, n, .3), x, y, z)); mrot[mrot.length - 1].rotation.y = Math.PI / 2; }; // shaft along x
+const ANIM = {
+  nuc(g) {
+    for (const z of [-75, 75]) puff(g, -170, 165, z, 140);
+    for (const z of [-45, 45]) flow(g, 'h', 8, 60, [0, 30, z], [40, 30, z * .3], [80, 18, 0]);
+    spin(g, 14, 6, 100, 17, 0);
+    flow(g, 'e', 10, 80, [160, 17, 0], [200, 30, 40], [275, 30, 70]);
+  },
+  gas(g) {
+    for (const z of [-30, 30]) { flow(g, 'h', 6, 50, [10, 14, 0], [45, 17, z], [95, 20, z]); puff(g, 100, 70, z, 70); }
+    spin(g, 12, 6, 0, 14, 0);
+    flow(g, 'e', 8, 70, [-35, 14, 0], [-60, 30, -40], [-60, 30, -80]);
+  },
+  wind(g, sea = false) {
+    const y0 = sea ? 6 : 0;
+    for (const [x, y] of [[-35, 70], [30, 85], [-15, 125], [40, 140]]) flow(g, 'a', 3, 60, [x, y0 + y, 140], [x, y0 + y, -60]);
+    flow(g, 'e', 5, 40, [0, y0 + 95, 0], [0, 0, 0]);
+  },
+  sea(g) { ANIM.wind(g, true); },
+  solar(g) {
+    for (const x of [-80, -30, 20, 70]) flow(g, 'h', 3, 90, [x + 40, 160, -60], [x, 4, 0]);
+    flow(g, 'e', 8, 50, [-95, 4, 0], [118, 4, 0], [118, 2, -30]);
+  },
+  hydro(g) {
+    for (const z of [-10, 10]) flow(g, 'w', 10, 120, [110, 245, z], [340, 10, z]);
+    spin(g, 14, 5, 350, 15, 0);
+    flow(g, 'e', 6, 80, [350, 30, 0], [350, 160, 0]);
+  },
+  mini(g) {
+    for (const x of [-45, 0, 45]) flow(g, 'w', 5, 40, [x, 4, -60], [x, 4, 60]);
+    spin(g, 8, 5, 95, 10, 0);
+    flow(g, 'e', 4, 40, [95, 20, 0], [95, 60, 0]);
+  },
+  bio(g) {
+    flow(g, 'h', 8, 25, [-45, 7, 0], [22, 52, 0]);
+    puff(g, 90, 95, -15, 80);
+    spin(g, 9, 5, 115, 12, 30);
+    flow(g, 'e', 5, 50, [140, 12, 30], [170, 40, 30]);
+  },
+  farm(g) { for (const o of g.children) if (o.position.y === 8) BREATH.push(o); }, // the gas domes
+  waste(g) {
+    flow(g, 'h', 6, 30, [-60, 20, 0], [15, 25, 0], [60, 12, 0]);
+    puff(g, 95, 85, 0, 70);
+    spin(g, 9, 5, 60, 12, 0);
+    flow(g, 'e', 5, 50, [80, 12, 0], [110, 40, 0]);
+  },
+  geo(g) {
+    flow(g, 'h', 12, 120, [-3, -600, 0], [-3, 0, 0], [35, 5, -12]); // hot water up
+    flow(g, 'w', 12, 120, [35, 5, 12], [3, 0, 0], [3, -600, 0]);    // cooled water back down
+    spin(g, 5, 5, 50, 5, -12);
+  },
+};
+const sites = [];
+for (const [k, lo, la, name, desc] of SITES) {
+  const g = mput(new THREE.Group(), lo, la);
+  g.scale.setScalar(MS * (k === 'hydro' ? .5 : 1)); // Coo's hill would swamp its neighbours at full size
+  MODEL[k](g);
+  g.updateMatrixWorld(); ANIM[k](g);
+  const mats = [];
+  g.traverse(o => { if (o.isLineSegments) mats.push([o.material, o.material.color.clone()]); });
+  tinted.push({ kind: KIND[k] || k, mats, amt: 0 });
+  if (!name) continue;
+  const top = TOP[k] * MS, kind = KIND[k] || k;
+  mtag(kind, lo, la, top + .8, name);
+  sites.push({ name, desc, g, top, kind });
+}
+mtag('geo', 5.09, 51.21, -600 * MS, '≈ 3,5 km, non à l\'échelle');
+const FLOW_COLOR = { e: ACCENT, h: HOT, w: 0x0e8fa3, a: 0x98a2a8 };
+const flowPts = {};
+for (const k in FLOW_COLOR) {
+  const n = FLOWS.filter(f => f.kind === k).reduce((a, f) => a + f.n, 0), geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+  M.add(new THREE.Points(geo, dots(disc, { size: k === 'a' ? 3 : 5, sizeAttenuation: false, color: FLOW_COLOR[k] }))); // fixed pixel size; air stays discreet
+  flowPts[k] = geo;
+}
+const puffTex = tex(g => { g.strokeStyle = '#5e6b74'; g.lineWidth = 3; g.beginPath(); g.arc(32, 32, 26, 0, 7); g.stroke(); });
+const PN = 8, puffGeo = new THREE.BufferGeometry();
+puffGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(PUFFS.length * PN * 3), 3));
+M.add(new THREE.Points(puffGeo, new THREE.PointsMaterial({ map: puffTex, size: 10, sizeAttenuation: false, transparent: true, opacity: .7, depthWrite: false }))); // fixed screen size: puffs near the camera don't balloon
+function animateWorks(t) {
+  const fill = {};
+  for (const f of FLOWS) {
+    const a = flowPts[f.kind].attributes.position, o = fill[f.kind] || 0;
+    for (let i = 0; i < f.n; i++) { f.c.getPointAt((t * f.speed * MS / f.len + i / f.n) % 1, v); a.setXYZ(o + i, v.x, v.y, v.z); }
+    fill[f.kind] = o + f.n;
+  }
+  for (const k in flowPts) flowPts[k].attributes.position.needsUpdate = true;
+  const pa = puffGeo.attributes.position;
+  PUFFS.forEach((p, e) => {
+    for (let i = 0; i < PN; i++) {
+      const u = (t * .12 + i / PN + e * .37) % 1; // rise, drift downwind, spread
+      pa.setXYZ(e * PN + i, p.at.x + u * p.h * .5 + Math.sin(u * 6 + i) * .2, p.at.y + u * p.h, p.at.z + Math.cos(u * 5 + i) * .2 * u);
+    }
+  });
+  pa.needsUpdate = true;
+  for (const d of BREATH) d.scale.y = 1 + .2 * Math.sin(t * 1.5);
+}
+
+// ── High-voltage network: real overhead lines (reseau.js), pylons + sagging cables + flowing charges ──
+// named anchors near the big substations: stops approach from them, the journey snaps them onto the real lines
+const NODE = { zee: [3.20, 51.33], gent: [3.72, 51.08], doel: [4.26, 51.32], anv: [4.40, 51.22], mol: [5.09, 51.21], gen: [5.50, 51.10], tih: [5.27, 50.53],
+  lie: [5.57, 50.63], bru: [4.35, 50.85], cour: [4.37, 50.46], ave: [3.44, 50.77], ach: [5.05, 50.28], aub: [5.80, 49.57] };
+const VOLT = [[380, .1, PHASES, 0x1f4fd8], [220, .085, PHASES, 0xb0369a], [150, .07, [[-6, 22], [6, 22]], 0xd9822b], [70, .055, [[-6, 22], [6, 22]], 0x4e9a94]]; // kV, pylon scale, cables, colour at the grid step
+const SPANM = 5; // one pylon every ~9 km: the hero's pylon, shrunk
+const cablePoint = (sp, [x, h], u, out) => out.lerpVectors(sp.a, sp.b, u).addScaledVector(sp.right, x * sp.ps).setY(sp.ps * (h - 30 * (1 - (2 * u - 1) ** 2) / 10));
+const hv = new THREE.Group(), spans = [], lines = [], base = [], w0 = V3(), w1 = V3();
+pylon(base, 0);
+const drawnCells = new Map(); // coarse grid of sample points along the lines already drawn (higher voltages first)
+const cellKey = (x, z) => `${Math.floor(x)},${Math.floor(z)}`;
+function crowded(pts) { // true when most of this line runs right next to one already drawn
+  const samples = [];
+  for (let i = 1; i < pts.length; i++) { const L = pts[i - 1].distanceTo(pts[i]); for (let d = 0; d < L; d += .5) samples.push(pts[i - 1].clone().lerp(pts[i], d / L)); }
+  let near = 0;
+  for (const p of samples) {
+    const cx = Math.floor(p.x), cz = Math.floor(p.z);
+    search: for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) for (const q of drawnCells.get(`${cx + i},${cz + j}`) || []) if (q.distanceTo(p) < .9) { near++; break search; }
+  }
+  if (samples.length && near / samples.length > .5) return true;
+  for (const p of samples) { const k = cellKey(p.x, p.z); if (!drawnCells.has(k)) drawnCells.set(k, []); drawnCells.get(k).push(p); }
+  return false;
+}
+for (const [kv, ps, phases, color] of VOLT) {
+  const towers = [], wires = [], seen = new Set();
+  for (const flat of RESEAU[kv]) {
+    const pts = []; for (let i = 0; i < flat.length; i += 2) pts.push(V3(mx(flat[i]), 0, mz(flat[i + 1])));
+    if (crowded(pts)) continue;
+    lines.push({ kv, pts });
+    const poles = [pts[0]];
+    for (let i = 1, carry = 0; i < pts.length; i++) { // walk the line, dropping a pylon every SPANM
+      const a = pts[i - 1], L = a.distanceTo(pts[i]);
+      let d = SPANM - carry;
+      for (; d < L; d += SPANM) poles.push(a.clone().lerp(pts[i], d / L));
+      carry = L - (d - SPANM);
+    }
+    if (poles.at(-1).distanceTo(pts.at(-1)) > .5) poles.push(pts.at(-1)); else poles[poles.length - 1] = pts.at(-1);
+    poles.forEach((p, i) => {
+      const dir = poles[Math.min(i + 1, poles.length - 1)].clone().sub(poles[Math.max(i - 1, 0)]).normalize(), rx = -dir.z, rz = dir.x;
+      const key = `${Math.round(p.x * 3)},${Math.round(p.z * 3)}`; // lines sharing a pylon draw it once
+      if (seen.has(key)) return;
+      seen.add(key);
+      for (let j = 0; j < base.length; j += 3) towers.push(p.x + rx * base[j] * ps, base[j + 1] * ps, p.z + rz * base[j] * ps);
+    });
+    const first = spans.length;
+    for (let i = 1; i < poles.length; i++) {
+      const a = poles[i - 1], b = poles[i], len = a.distanceTo(b);
+      if (len < .05) continue;
+      const dir = b.clone().sub(a).divideScalar(len), sp = { a, b, len, ps, phases, kv, right: V3(-dir.z, 0, dir.x), next: spans.length + 1 };
+      spans.push(sp);
+      for (const ph of phases) for (let k = 0; k < 4; k++) {
+        cablePoint(sp, ph, k / 4, w0); cablePoint(sp, ph, (k + 1) / 4, w1);
+        wires.push(w0.x, w0.y, w0.z, w1.x, w1.y, w1.z);
+      }
+    }
+    if (spans.length > first) spans.at(-1).next = first; // charges loop back to the line's start
+  }
+  const t = segments(towers, INK), w = segments(wires, LINE);
+  t.userData.net = w.userData.net = color; t.userData.kv = w.userData.kv = kv;
+  hv.add(t, w);
+}
+M.add(hv);
+// charges ride every line on show: one set on 380 / 220 kV, one on the finer 150 / 70 kV mesh (visible with it)
+function charges(idx, n) {
+  const tot = idx.reduce((a, i) => a + spans[i].len, 0), hr = new Uint32Array(n), hu = Float32Array.from({ length: n }, Math.random), hp = new Float32Array(n * 3);
+  for (let i = 0, acc = 0, r = 0; i < n; i++) { while ((acc + spans[idx[r]].len) / tot < i / n) acc += spans[idx[r++]].len; hr[i] = idx[r]; }
+  for (let i = n - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [hr[i], hr[j]] = [hr[j], hr[i]]; } // shuffled: any first slice is spread over the whole grid
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(hp, 3));
+  const pts = new THREE.Points(geo, dots(disc, { size: 4, sizeAttenuation: false, color: ACCENT, alphaTest: .01 })); // fixed pixel size: no giant dots up close
+  pts.userData.kv = spans[idx[0]].kv;
+  hv.add(pts);
+  return { n, hr, hu, hp, geo };
+}
+const chargeSets = [charges(spans.map((sp, i) => i).filter(i => spans[i].kv >= 220), 1500), charges(spans.map((sp, i) => i).filter(i => spans[i].kv < 220), 1500)];
+for (const o of hv.children) o.material.transparent = true;
+const hvBase = hv.children.map(o => o.material.color.clone());
+// the dive target: a 380 kV span in open country, on a straight run (the next spans keep its heading), near Brussels
+const straight = sp => { let n = sp; for (let k = 0; k < 3; k++) { const m = spans[n.next]; if (!m || m.kv !== sp.kv || n.b.distanceTo(m.a) > .01) return false; const d0 = n.b.clone().sub(n.a).normalize(), d1 = m.b.clone().sub(m.a).normalize(); if (d0.dot(d1) < .97) return false; n = m; } return true; };
+const diveSpan = spans.filter(sp => sp.kv >= 380 && sp.len > 4 && straight(sp)).sort((p, q) => p.a.distanceTo(V3(mx(4.35), 0, mz(50.85))) - q.a.distanceTo(V3(mx(4.35), 0, mz(50.85))))[0];
+const diveDir = diveSpan.b.clone().sub(diveSpan.a).normalize();
+const diveView = diveSpan.a.clone().lerp(diveSpan.b, .45).addScaledVector(diveSpan.right, 1.25).setY(2.05); // mid-span, just beside the phases
+const diveLook = diveSpan.b.clone().addScaledVector(diveDir, 25).addScaledVector(diveSpan.right, 1.25).setY(1.6);
+
+// travel graph on the 380 / 220 kV lines: line ends closer than 1 unit (≈ 2 km, a substation) become one node
+const gNodes = [], gEdges = [], adj = [];
+const nodeAt = p => { for (let i = 0; i < gNodes.length; i++) if (gNodes[i].distanceTo(p) < 1) return i; gNodes.push(p); adj.push([]); return gNodes.length - 1; };
+for (const { kv, pts } of lines) if (kv >= 220) {
+  const a = nodeAt(pts[0]), b = nodeAt(pts.at(-1)), len = pts.reduce((s, p, i) => i ? s + p.distanceTo(pts[i - 1]) : 0, 0);
+  if (a === b) continue;
+  adj[a].push(gEdges.length); adj[b].push(gEdges.length); gEdges.push({ a, b, pts, len });
+}
+const comp = new Int32Array(gNodes.length).fill(-1); // keep to the main connected network
+for (let c = 0, i = 0; i < gNodes.length; i++) if (comp[i] < 0) {
+  const stack = [i]; comp[i] = c;
+  while (stack.length) for (const e of adj[stack.pop()]) for (const n of [gEdges[e].a, gEdges[e].b]) if (comp[n] < 0) { comp[n] = c; stack.push(n); }
+  c++;
+}
+const sizes = {}; for (const c of comp) sizes[c] = (sizes[c] || 0) + 1;
+const mainComp = +Object.keys(sizes).reduce((a, b) => sizes[a] >= sizes[b] ? a : b);
+const nearestNode = p => { let best = -1, bd = Infinity; gNodes.forEach((n, i) => { const d = n.distanceTo(p); if (comp[i] === mainComp && d < bd) { bd = d; best = i; } }); return best; };
+function route(p, q) { // ground points along the real lines, shortest way between the network nodes nearest to p and q
+  const s = nearestNode(p), t = nearestNode(q), dist = new Float64Array(gNodes.length).fill(Infinity), via = new Int32Array(gNodes.length).fill(-1), done = new Uint8Array(gNodes.length);
+  dist[s] = 0;
+  for (;;) {
+    let u = -1; for (let i = 0; i < dist.length; i++) if (!done[i] && dist[i] < Infinity && (u < 0 || dist[i] < dist[u])) u = i;
+    if (u < 0 || u === t) break;
+    done[u] = 1;
+    for (const ei of adj[u]) { const e = gEdges[ei], w = e.a === u ? e.b : e.a; if (dist[u] + e.len < dist[w]) { dist[w] = dist[u] + e.len; via[w] = ei; } }
+  }
+  if (dist[t] === Infinity) return [p.clone().setY(0), q.clone().setY(0)];
+  let out = [];
+  for (let u = t; u !== s;) { const e = gEdges[via[u]], fwd = e.b === u ? e.pts : [...e.pts].reverse(); out = fwd.concat(out); u = e.a === u ? e.b : e.a; }
+  return out.filter((pt, i) => i === 0 || i === out.length - 1 || pt.distanceTo(out[i - 1]) > 1.5).map(pt => pt.clone());
+}
+const anchor = n => V3(mx(NODE[n][0]), 0, mz(NODE[n][1]));
+// the title flies low along a loop of the real grid
+const loopNames = ['gent', 'doel', 'anv', 'mol', 'gen', 'lie', 'tih', 'cour', 'ave', 'gent'];
+const tourPts = loopNames.slice(1).flatMap((n, i) => route(anchor(loopNames[i]), anchor(n)).slice(0, -1)).filter((p, i, a) => !i || p.distanceTo(a[i - 1]) > .5);
+const tour = new THREE.CatmullRomCurve3(tourPts, true, 'centripetal');
+tour.arcLengthDivisions = tourPts.length * 6;
+const tourLen = tour.getLength();
+// each neighbour: where its name sits, which price zone it belongs to, and where its link crosses into Belgium
+const COUNTRIES = [['Belgique', 'BE', 4.6, 50.62, null], ['France', 'FR', 3.6, 49.75, [3.44, 50.77]], ['Pays-Bas', 'NL', 5.6, 52.0, [4.30, 51.37]],
+  ['Allemagne', 'DE-LU', 6.3, 51.7, [6.03, 50.72]], ['Luxembourg', 'DE-LU', 6.1, 49.72, [5.80, 49.57]], ['Royaume-Uni', null, 2.3, 51.75, [3.20, 51.33]]];
+const links = new THREE.Group(), countryTags = [];
+for (const [name, zone, lo, la, cross] of COUNTRIES) {
+  const t = mtag('country', lo, la, 1, ''); t.el.classList.add('big'); Object.assign(t, { country: name, zone }); countryTags.push(t);
+  if (!cross) continue;
+  const a = V3(mx(lo), .3, mz(la)), b = V3(mx(cross[0]), .3, mz(cross[1])), mid = a.clone().lerp(b, .5).setY(a.distanceTo(b) * .35);
+  const curve = new THREE.QuadraticBezierCurve3(a, mid, b); // from the neighbour to the border crossing, arching over it
+  const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(curve.getPoints(40)), new THREE.LineBasicMaterial({ color: LINE, transparent: true, opacity: .6 }));
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(24 * 3), 3));
+  const pts = new THREE.Points(geo, new THREE.PointsMaterial({ size: 7, sizeAttenuation: false, map: disc, alphaTest: .5, color: ACCENT }));
+  const g = new THREE.Group(); g.add(line, pts); Object.assign(g.userData, { name, curve, geo, pts, mw: 0 });
+  links.add(g);
+}
+M.add(links);
+function animateLinks(t) { // charges stream in (import, blue) or out (export, orange); more of them, faster, for bigger flows
+  for (const g of links.children) {
+    const { curve, geo, pts, mw } = g.userData, n = mw ? Math.min(24, 3 + Math.round(Math.abs(mw) / 120)) : 0, pace = .12 + Math.min(.5, Math.abs(mw) / 4000), a = geo.attributes.position;
+    pts.material.color.setHex(mw < 0 ? ACCENT : 0xd9822b);
+    for (let i = 0; i < n; i++) { const u = (t * pace + i / n) % 1; curve.getPoint(mw < 0 ? u : 1 - u, v); a.setXYZ(i, v.x, v.y, v.z); }
+    geo.setDrawRange(0, n); a.needsUpdate = true;
+  }
+}
+
+// ── Journey: one stop per step; legs ride the HV network (shortest path), then the conductor into the house ──
+const nodeUp = n => anchor(n).setY(3.1); // just above the pylon tops
+const siteStop = (node, name) => { // arrive from the grid node's side, framed to the installation's height
+  const st = sites.find(x => x.name === name), c = st.g.position, n = nodeUp(node).setY(0);
+  const dir = n.distanceTo(c) > 1 ? n.sub(c).normalize() : V3(0, 0, 1), r = st.top * 3.2 + 4;
+  return { node, site: st, view: c.clone().addScaledVector(dir, r).setY(.35), focus: c.clone().setY(st.top * .5) }; // standing on the ground, eyes ~1.7 m up (scaled)
+};
+const STOP = {
+  start: { node: 'gent', view: nodeUp('gent'), focus: nodeUp('doel').setY(1) },
+  nuc: siteStop('doel', 'Doel'), gas: siteStop('bru', 'Vilvoorde'), wind: siteStop('zee', 'Éolien en mer du Nord'),
+  sun: siteStop('bru', 'Parc solaire'), hydro: siteStop('lie', 'Coo'), bio: siteStop('gent', 'Biomasse, port de Gand'),
+  waste: siteStop('bru', 'Incinérateur, Bruxelles'), geo: siteStop('mol', 'Mol'),
+  border: { view: V3(mx(4.75), 215, mz(49.05)), focus: V3(mx(4.75), 0, mz(50.55)) }, // wider: the neighbours come into view
+  net: { view: V3(mx(5.3), 118, mz(49.95)), focus: V3(mx(5.4), 0, mz(50.72)), // the coast slides under the glass panel, so the map shows through it
+   via: [nodeUp('mol').add(V3(0, 40, 30))] }, // climb high to see the whole grid
+};
+const stepStops = [...document.querySelectorAll('.step')].map(e => STOP[e.dataset.stop] ||
+  (e.dataset.cam && { focus: V3(...e.dataset.cam.split(',').map(Number).slice(0, 2), 0) })); // section steps: the leader points at the subject
+const alongside = pts => pts.map((p, i) => { // ride just outside the right-hand phases, at cable height, among the charges
+  const a = pts[Math.max(i - 1, 0)], b = pts[Math.min(i + 1, pts.length - 1)], d = Math.hypot(b.x - a.x, b.z - a.z) || 1;
+  return V3(p.x - (b.z - a.z) / d * 1.05, 1.9, p.z + (b.x - a.x) / d * 1.05);
+});
+const legs = stepStops.map((st, j) => {
+  const prev = stepStops[j - 1];
+  if (!st?.view || !prev?.view) return null;
+  const pts = [prev.view];
+  if (prev.node && st.node) pts.push(...alongside(route(prev.view, st.view))); // join the grid near where we stand, leave it near where we'll look from
+  pts.push(...(st.via || []), st.view);
+  const clean = pts.filter((p, i) => i === 0 || p.distanceTo(pts[i - 1]) > .02);
+  // drone arc: lift off, cruise high over the grid, come back down to eye level
+  const acc = [0]; for (let i = 1; i < clean.length; i++) acc.push(acc[i - 1] + Math.hypot(clean[i].x - clean[i - 1].x, clean[i].z - clean[i - 1].z));
+  const H = prev.node && st.node ? 0 : Math.min(30, 4 + acc.at(-1) * .15), y0 = clean[0].y, y1 = clean.at(-1).y; // along the grid we ride the cables instead
+  clean.forEach((p, i) => { if (i && i < clean.length - 1) { const f = acc[i] / acc.at(-1); p.y = Math.max(p.y, y0 + (y1 - y0) * f + H * Math.sin(Math.PI * f)); } });
+  const c = new THREE.CatmullRomCurve3(clean.length > 1 ? clean : [clean[0], clean[0].clone().add(V3(0, .01, 0))], false, 'centripetal');
+  c.arcLengthDivisions = clean.length * 8; // many points along real lines: keep the pace even
+  return c;
+});
+
+// ── Scale of magnitude: a classic half-circle dial beside the installation. The arc fills on a log scale
+// (1 MW … 3 000 MW, one tick per decade) while the figure in the middle counts up. ──
+const POWER = { nuc: [1000, 'Un réacteur'], gas: [500, 'Une centrale au gaz'], wind: [2300, 'Toute la zone en mer, par grand vent'], sun: [10, 'Un parc solaire, en plein soleil'],
+  hydro: [1090, 'Coo, à pleine puissance'], bio: [100, 'Une centrale à biomasse'], waste: [40, 'Un grand incinérateur'] }; // orders of magnitude
+const nf = new Intl.NumberFormat('fr-BE', { maximumFractionDigits: 1 });
+const homes = mw => { const n = mw * 2500; return n >= 1e6 ? `${nf.format(n / 1e6)} million${n >= 2e6 ? 's' : ''} de ménages` : `${nf.format(Math.round(n / 100) * 100)} ménages`; }; // ≈ 3 500 kWh/yr ≈ 0.4 kW per home
+const dialF = mw => Math.log10(Math.max(mw, 1)) / Math.log10(3000);
+const meter = document.getElementById('meter'), meterVal = meter.querySelector('.val'), meterNum = meter.querySelector('b');
+const dialAt = V3();
+let gaugeStep = -1, gaugeT0 = 0, meterOp = '', stillSince = 0;
+function animateGauge(now, kind) {
+  const here = Math.round(sv), st = stepStops[here], pw = POWER[kind];
+  if (here !== gaugeStep) {
+    gaugeStep = here; gaugeT0 = now;
+    if (st?.site && pw) { // anchored just above the top of the installation
+      dialAt.copy(st.site.g.position).setY(st.site.top * 1.15 + .3);
+      meter.style.setProperty('--c', '#' + KCOLOR[kind].toString(16).padStart(6, '0'));
+      meter.querySelector('.what').textContent = pw[1];
+    }
+  }
+  // only once the camera has stopped moving (not while it glides or turns)
+  const still = camera.position.distanceTo(want) < .05 && camera.quaternion.angleTo(aim.quaternion) < .02;
+  if (!(st?.site && pw) || hold < .9) stillSince = 0; else if (still && !stillSince) stillSince = now;
+  let on = stillSince > 0 && now - stillSince > 300;
+  if (on) { // sits above the model, clear of the note and inside the sheet
+    v.copy(dialAt).project(camera);
+    const nr = steps[here].querySelector('p')?.getBoundingClientRect(), w = meter.offsetWidth, h = meter.offsetHeight;
+    const x = Math.min(Math.max((v.x + 1) / 2 * innerWidth - w / 2, (nr?.right ?? 0) + 24), innerWidth - w - 40);
+    const y = Math.max((1 - v.y) / 2 * innerHeight - h - 8, 40);
+    on = v.z < 1;
+    meter.style.transform = `translate(${x.toFixed(0)}px,${y.toFixed(0)}px)`;
+    const k = motion ? ss(0, 1, (now - stillSince - 300) / 2500) : 1, mw = pw[0] * k; // counts up from the moment we stop
+    meterVal.style.strokeDasharray = `${(dialF(mw) * 100 * +(k > 0)).toFixed(1)} 100`;
+    meterNum.textContent = `${nf.format(mw < 10 ? Math.round(mw * 10) / 10 : Math.round(mw))} MW`;
+    meter.querySelector('.homes').textContent = homes(mw);
+  }
+  const op = on ? '1' : '0';
+  if (op !== meterOp) meter.style.opacity = meterOp = op;
+}
+
+// ── Borders beat: a grid dashboard in the manner of electricity flow maps. Elia open data, 48 h at 15 min,
+// read in the browser; day-ahead prices from prix.json. What Elia doesn't publish is shown as '?', never invented. ──
+const ELIA = 'https://opendata.elia.be/api/explore/v2.1/catalog/datasets/';
+const ladder = document.getElementById('ladder'), dash = document.getElementById('dash'), timeline = document.getElementById('timeline'), legend = document.getElementById('legend');
+const tipEl = document.getElementById('tip'), popEl = document.getElementById('pop');
+
+// label, colour, ENTSO-E fuel types, lifecycle factor gCO₂eq/kWh (IPCC 2014 medians; 'inconnu' = waste + other, rough), renewable?
+const SRC = [['biomasse', '#4f8f5b', ['Biomass'], 230, 1], ['géothermie', '#b0562a', null, 38, 1], ['hydro', '#3b6fd8', ['Hydro Run-of-river and poundage'], 24, 1],
+  ['solaire', '#f2c230', ['Solar'], 45, 1], ['éolien', '#8fd3f0', ['Wind Offshore', 'Wind Onshore'], 11, 1], ['nucléaire', '#a67cf0', ['Nuclear'], 12, 0],
+  ['stockage batterie', '#4aa77e', ['Energy Storage'], null, 0], ['stockage hydro', '#2b3cc4', ['Hydro Pumped Storage'], null, 0], ['charbon', '#a28b4a', null, 820, 0],
+  ['gaz', '#b8ad98', ['Fossil Gas'], 490, 0], ['fioul', '#4d3f46', ['Fossil Oil'], 650, 0], ['inconnu', '#b8b8b8', ['Waste', 'Other'], 700, 0]];
+const LOWC = new Set(['biomasse', 'géothermie', 'hydro', 'solaire', 'éolien', 'nucléaire']), RENEW = new Set(['biomasse', 'géothermie', 'hydro', 'solaire', 'éolien']);
+const AREAS = { Germany: 'Allemagne', France: 'France', 'United Kingdom': 'Royaume-Uni', UnitedKingdom: 'Royaume-Uni', Luxembourg: 'Luxembourg', Netherlands: 'Pays-Bas' };
+const CODES = { Allemagne: 'DE', France: 'FR', 'Royaume-Uni': 'GB', Luxembourg: 'LU', 'Pays-Bas': 'NL' };
+const nf2 = new Intl.NumberFormat('fr-BE', { maximumFractionDigits: 2 }), mwf = new Intl.NumberFormat('fr-BE', { maximumFractionDigits: 0 });
+const fmtDay = ms => new Date(ms).toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/Brussels' });
+const fmtTime = ms => new Date(ms).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' }) + ' UTC+2';
+const getJSON = async url => { const r = await fetch(url); if (!r.ok) throw new Error(r.status); return r.json(); };
+const exportJSON = ds => getJSON(`${ELIA}${ds}/exports/json?where=${encodeURIComponent('datetime >= now(days=-2)')}&order_by=datetime`);
+const co2Colour = g => { // pale green → gold → brown, like carbon-intensity maps
+  const stops = [[0, [168, 207, 152]], [250, [222, 196, 90]], [450, [196, 150, 64]], [800, [120, 70, 40]]];
+  for (let i = 1; i < stops.length; i++) if (g <= stops[i][0]) { const [a, ca] = stops[i - 1], [b, cb] = stops[i], f = (g - a) / (b - a); return `rgb(${ca.map((c, k) => Math.round(c + (cb[k] - c) * f))})`; }
+  return 'rgb(120,70,40)';
+};
+legend.querySelector('.grad').style.background = `linear-gradient(90deg, ${[0, 200, 400, 600, 800].map(co2Colour).join(',')})`;
+
+const D = { times: [], mix: new Map(), flows: new Map(), price: null, idx: 0, gran: 1, tab: 'elec', ready: false };
+async function loadDash() {
+  const [mix, fHist, fNow, price] = await Promise.allSettled([exportJSON('ods201'), exportJSON('ods026'), exportJSON('ods160'), getJSON('prix.json')]);
+  for (const r of mix.value || []) {
+    const t = Date.parse(r.datetime), src = SRC.find(s => s[2]?.includes(r.fueltypeentsoe))?.[0] || 'inconnu';
+    if (!D.mix.has(t)) D.mix.set(t, {});
+    if (r.generatedpower != null) D.mix.get(t)[src] = (D.mix.get(t)[src] || 0) + r.generatedpower;
+  }
+  for (const r of [...(fHist.value || []), ...(fNow.value || [])]) {
+    const t = Date.parse(r.datetime), a = AREAS[r.controlarea];
+    if (!a) continue;
+    if (!D.flows.has(t)) D.flows.set(t, {});
+    D.flows.get(t)[a] = r.physicalflowatborder;
+  }
+  D.price = price.value || null;
+  D.times = [...D.mix.keys()].sort((a, b) => a - b);
+  D.ready = D.times.length > 0;
+  D.idx = D.times.length - 1;
+  buildTimeline(); renderDash();
+}
+
+// value at the selected moment, averaged over the chosen granularity (1 = 15 min, 4 = hourly)
+function snapshot() {
+  const span = D.times.slice(Math.max(0, D.idx - D.gran + 1), D.idx + 1), avg = (map, keys) => {
+    const out = {}, got = keys.map(t => map.get(t)).filter(Boolean);
+    for (const o of got) for (const k in o) out[k] = (out[k] || 0) + o[k] / got.length;
+    return got.length ? out : null;
+  };
+  const t = D.times[D.idx], mix = avg(D.mix, span) || {}, flows = avg(D.flows, span);
+  const prod = SRC.reduce((a, [n]) => a + (mix[n] || 0), 0);
+  const imp = flows ? Object.values(flows).filter(v => v < 0).reduce((a, v) => a - v, 0) : null, exp = flows ? Object.values(flows).filter(v => v > 0).reduce((a, v) => a + v, 0) : null;
+  const emit = SRC.filter(s => s[3] != null && mix[s[0]]), co2t = emit.reduce((a, s) => a + mix[s[0]] * s[3], 0) / 1e6; // kt/h
+  const emitMW = emit.reduce((a, s) => a + mix[s[0]], 0);
+  const share = set => Math.round(SRC.filter(s => set.has(s[0])).reduce((a, [n]) => a + (mix[n] || 0), 0) / prod * 100);
+  return { t, mix, flows, prod, imp, exp, co2t, intensity: emitMW ? co2t * 1e6 / emitMW : null, low: share(LOWC), ren: share(RENEW) };
+}
+const priceAt = (zone, t) => {
+  const pts = D.price?.zones?.[zone]; if (!pts?.length) return null;
+  const s = t / 1000; if (s < pts[0][0] || s > pts.at(-1)[0] + 900) return null;
+  return ([...pts].reverse().find(([u]) => u <= s) || pts[0])[1];
+};
+// one bar chart row set: rows [label, colour, value|null, sub?], diverging around 0 when min < 0
+function chart(rows, max, min, unit, ticks, clickable) {
+  const pos = v => (v - min) / (max - min) * 100, grid = `linear-gradient(90deg, #ddd 1px, transparent 1px)`;
+  const gridBg = ticks.map(v => `linear-gradient(90deg, transparent calc(${pos(v)}% - .5px), #e3e3e3 calc(${pos(v)}% - .5px), #e3e3e3 calc(${pos(v)}% + .5px), transparent calc(${pos(v)}% + .5px))`).join(',');
+  return `<span></span><span class="ax">${ticks.map(v => `<span style="left:${pos(v)}%">${nf2.format(v)} ${unit}</span>`).join('')}</span>` + rows.map(([label, c, v, sub]) => {
+    const bar = v == null ? `<em style="left:calc(${pos(0)}% + 4px)">?</em>` : `<i style="left:${Math.min(pos(0), pos(v))}%;width:${Math.abs(pos(v) - pos(0))}%"></i>`;
+    const name = clickable ? `<button class="name" data-src="${label}"><span class="ico"></span>${label}</button>` : `<span class="name">${sub ? '' : '<span class="ico"></span>'}${label}</span>`;
+    return `<span class="row${sub ? ' sub' : ''}" style="--c:${c};--grid:${gridBg}">${name}<span class="plot">${bar}</span></span>`;
+  }).join('');
+}
+function renderDash() {
+  if (!D.ready) { dash.querySelector('.d-when').textContent = 'Chargement des données d\'Elia…'; return; }
+  const S = snapshot(), co2 = D.tab === 'co2';
+  dash.querySelector('.d-title').textContent = co2 ? 'Émissions carbone' : 'Mix électrique';
+  dash.querySelector('.d-when').textContent = `${fmtDay(S.t)}, ${fmtTime(S.t)}${D.gran > 1 ? ' (moyenne horaire)' : ''}`;
+  const tile = dash.querySelector('.d-tile');
+  tile.style.background = S.intensity ? co2Colour(S.intensity) : '#eee';
+  dash.querySelector('.v-co2').textContent = S.intensity ? mwf.format(S.intensity) : '?';
+  for (const [k, v] of [['low', S.low], ['ren', S.ren]]) {
+    dash.querySelector(`.t-${k}`).textContent = isFinite(v) ? `${v} %` : '?';
+    dash.querySelector(`.v-${k}`).style.strokeDasharray = `${(isFinite(v) ? v : 0) * .75} 100`;
+  }
+  if (co2) {
+    const rows = SRC.map(([n, c, types, f]) => [n, c, types && f != null ? (S.mix[n] || 0) * f / 1e6 : (types ? 0 : null)]);
+    const top = Math.max(1.5, Math.ceil(Math.max(...rows.map(r => r[2] || 0)) * 2) / 2), step = top > 2 ? 1 : .5; // the scale grows with the biggest emitter
+    const ticks = Array.from({ length: Math.floor(top / step) + 1 }, (_, i) => i * step);
+    dash.querySelector('.d-mix').innerHTML = chart(rows, top, 0, 'kt', ticks, true);
+    dash.querySelector('.d-flows').innerHTML = chart(Object.values(CODES).map(c => [c, '#9e9e9e', null]), 1.5, 0, 'kt', [0, .5, 1, 1.5], false);
+    dash.querySelectorAll('.d-axis')[0].style.visibility = 'hidden';
+  } else {
+    const rows = SRC.map(([n, c, types]) => [n, c, types ? (S.mix[n] || 0) / 1000 : null]);
+    dash.querySelector('.d-mix').innerHTML = chart(rows, 10, -1.5, 'GW', [0, 5, 10], true);
+    const f = S.flows ? [['net flow', '#a8c3c6', (S.imp - S.exp) / 1000], ['importée', '#a8c3c6', S.imp / 1000, 1], ['exportée', '#a8c3c6', -S.exp / 1000, 1]] : [['net flow', '#a8c3c6', null], ['importée', '#a8c3c6', null, 1], ['exportée', '#a8c3c6', null, 1]];
+    dash.querySelector('.d-flows').innerHTML = chart(f, 10, -1.5, 'GW', [0, 5, 10], false);
+    dash.querySelectorAll('.d-axis')[0].style.visibility = '';
+  }
+  dash.querySelector('.d-src').textContent = co2
+    ? 'Émissions estimées : production × facteurs du GIEC (2014). Les émissions liées aux importations ne sont pas publiées par Elia : « ? ».'
+    : `Source : Elia, données publiées${S.flows ? '' : ' (pas encore d\'échanges pour ce moment)'}. Géothermie et charbon : non publiés, « ? ».`;
+  // the map follows the selected moment: flow arcs, country labels with prices, Belgium tinted by carbon intensity
+  for (const g of links.children) g.userData.mw = S.flows?.[g.userData.name] ?? 0;
+  for (const tg of countryTags) { // name first and biggest; price and the exchange with Belgium underneath, smaller
+    const p = priceAt(tg.zone, S.t), mw = S.flows?.[tg.country];
+    const lines = [p == null ? '' : `${mwf.format(p)} €/MWh`, mw == null ? '' : `${mw >= 0 ? 'reçoit' : 'fournit'} ${mwf.format(Math.abs(mw))} MW`].filter(Boolean);
+    tg.el.firstChild.innerHTML = `<b>${tg.country}</b>${lines.map(l => `<small>${l}</small>`).join('')}`;
+  }
+  D.last = S;
+  syncTimeline();
+}
+
+// timeline: day ticks, live marker, granularity menu, play and back-to-live
+const range = timeline.querySelector('.tl-range'), menu = timeline.querySelector('.tl-menu'), gran = timeline.querySelector('.tl-gran'), playBtn = timeline.querySelector('.tl-play');
+function buildTimeline() {
+  range.max = D.times.length - 1;
+  const t0 = D.times[0], t1 = D.times.at(-1), pos = t => (t - t0) / (t1 - t0) * 100;
+  let html = '';
+  const off = Date.parse(new Date(t0).toLocaleString('en-US', { timeZone: 'Europe/Brussels' })) - Date.parse(new Date(t0).toLocaleString('en-US', { timeZone: 'UTC' })); // Brussels vs UTC
+  for (let t = Math.ceil((t0 + off) / 432e5) * 432e5 - off; t <= t1; t += 432e5) { // every 12 h, on Brussels midnight and noon
+    const d = new Date(t), midnight = d.toLocaleTimeString('fr-BE', { hour: '2-digit', timeZone: 'Europe/Brussels' }).startsWith('00');
+    html += `<span style="left:${pos(t)}%">${midnight ? d.toLocaleDateString('fr-BE', { day: 'numeric', month: 'short', timeZone: 'Europe/Brussels' }) : d.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Brussels' })}</span>`;
+  }
+  timeline.querySelector('.tl-ticks').innerHTML = html + `<span class="live" style="left:calc(100% - 2px)" title="Dernières données"></span>`;
+}
+function syncTimeline() {
+  range.value = D.idx;
+  timeline.querySelector('.tl-day').textContent = fmtDay(D.times[D.idx]);
+  timeline.querySelector('.tl-time').textContent = fmtTime(D.times[D.idx]);
+}
+range.addEventListener('input', () => { D.idx = +range.value; renderDash(); });
+gran.addEventListener('click', () => { const open = menu.hidden; menu.hidden = !open; gran.setAttribute('aria-expanded', open); });
+menu.addEventListener('click', e => {
+  const li = e.target.closest('li'); if (!li) return;
+  D.gran = +li.dataset.g; for (const o of menu.children) o.setAttribute('aria-selected', o === li);
+  gran.textContent = `${li.textContent} ▾`; menu.hidden = true; gran.setAttribute('aria-expanded', false); renderDash();
+});
+timeline.querySelector('.tl-live').addEventListener('click', () => { D.idx = D.times.length - 1; renderDash(); });
+let playing = null;
+playBtn.addEventListener('click', () => {
+  if (playing) { clearInterval(playing); playing = null; playBtn.textContent = '▶'; return; }
+  if (D.idx >= D.times.length - 1) D.idx = 0;
+  playBtn.textContent = '❚❚';
+  playing = setInterval(() => { D.idx = Math.min(D.times.length - 1, D.idx + D.gran); renderDash(); if (D.idx === D.times.length - 1) playBtn.click(); }, 350);
+});
+
+// panel: tabs, info tooltips, source popover, back arrow
+for (const b of dash.querySelectorAll('.d-tabs button')) b.addEventListener('click', () => {
+  D.tab = b.dataset.tab; for (const x of dash.querySelectorAll('.d-tabs button')) x.setAttribute('aria-selected', x === b); renderDash();
+});
+const showTip = el => { const r = el.getBoundingClientRect(); tipEl.textContent = el.dataset.tip; tipEl.hidden = false; tipEl.style.left = `${Math.max(8, r.left + r.width / 2 - 150)}px`; tipEl.style.top = `${r.bottom + 8}px`; };
+for (const b of dash.querySelectorAll('.info')) { b.addEventListener('mouseenter', () => showTip(b)); b.addEventListener('focus', () => showTip(b)); b.addEventListener('mouseleave', () => tipEl.hidden = true); b.addEventListener('blur', () => tipEl.hidden = true); }
+const openPop = (html, x, y) => { popEl.innerHTML = html; popEl.hidden = false; popEl.style.left = `${Math.min(x, innerWidth - popEl.offsetWidth - 12)}px`; popEl.style.top = `${Math.min(y, innerHeight - popEl.offsetHeight - 12)}px`; };
+function sourcePop(b) {
+  const S = D.last, [n, c, types, f] = SRC.find(s => s[0] === b.dataset.src), mw = S.mix[n] || 0, avail = S.prod + (S.imp || 0), r = b.getBoundingClientRect();
+  const kt = f != null ? mw * f / 1e6 : null;
+  openPop(`<h4><span class="ico" style="--c:${c}"></span>${n[0].toUpperCase() + n.slice(1)}</h4><p class="when">${fmtDay(S.t)}, ${fmtTime(S.t)}</p>` + (types
+    ? `<p><b>${nf2.format(mw / avail * 100)} %</b> de l'électricité disponible en Belgique est générée via ${n}<br><small>(${nf2.format(mw / 1000)} GW / ${nf2.format(avail / 1000)} GW)</small></p>` +
+      (kt != null ? `<p>représentant <b>${nf2.format(kt / S.co2t * 100)} %</b> des émissions<br><small>(${nf2.format(kt)} kt / ${nf2.format(S.co2t)} kt de CO₂eq, estimées)</small></p><p>avec une intensité carbone de <b>${f} gCO₂eq/kWh</b> <small>(Source : GIEC 2014)</small></p>` : '')
+    : `<p>Elia ne publie pas de production « ${n} » pour la Belgique.</p>`), r.right + 10, r.top - 10);
+}
+dash.addEventListener('mouseover', e => { const b = e.target.closest('[data-src]'); if (b) sourcePop(b); });
+dash.addEventListener('mouseout', e => { if (e.target.closest('[data-src]') && !e.relatedTarget?.closest?.('[data-src]')) popEl.hidden = true; });
+dash.addEventListener('focusin', e => { const b = e.target.closest('[data-src]'); if (b) sourcePop(b); });
+dash.addEventListener('focusout', () => { popEl.hidden = true; });
+addEventListener('click', e => { if (!popEl.hidden && !popEl.contains(e.target)) popEl.hidden = true; });
+addEventListener('pointermove', e => {
+  for (const g of document.querySelectorAll('.glass')) {
+    const r = g.getBoundingClientRect(), fx = (e.clientX - r.left) / r.width, fy = (e.clientY - r.top) / r.height, inside = fx >= 0 && fx <= 1 && fy >= 0 && fy <= 1;
+    g.style.setProperty('--gx', `${(fx * 100).toFixed(1)}%`); g.style.setProperty('--gy', `${(fy * 100).toFixed(1)}%`);
+    g.style.setProperty('--tx', inside ? `${((.5 - fy) * 2.4).toFixed(2)}deg` : '0deg'); g.style.setProperty('--ty', inside ? `${((fx - .5) * 2.4).toFixed(2)}deg` : '0deg');
+  }
+});
+
+
+// hover over Belgium or a neighbour on the map: a summary popover of the selected moment
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+function countryPop(name, x, y) {
+  const S = D.last, head = `<h4>${name === 'Belgique' ? '<span class="flag"><i></i><i></i><i></i></span>' : ''}${name}</h4><p class="when">${fmtDay(S.t)}, ${fmtTime(S.t)}</p>`;
+  if (name !== 'Belgique') {
+    const zone = COUNTRIES.find(c => c[0] === name)[1], p = zone && priceAt(zone, S.t), mw = S.flows?.[name];
+    return openPop(head + `<div class="tiles"><span style="background:#f2c9bd"><b>${p == null ? '?' : nf2.format(p)}</b>€/MWh</span>
+      <span style="background:${mw == null ? '#eee' : mw < 0 ? '#c9d6f5' : '#f5dcc2'}"><b>${mw == null ? '?' : mwf.format(Math.abs(mw))}</b>MW ${mw == null ? '' : mw < 0 ? 'vers la Belgique' : 'depuis la Belgique'}</span></div>
+      <p><small>Le mix et l'intensité carbone de ce pays ne sont pas publiés par Elia.</small></p>`, x, y);
+  }
+  const top = SRC.filter(s => S.mix[s[0]]).sort((a, b) => S.mix[b[0]] - S.mix[a[0]])[0], p = priceAt('BE', S.t), avail = S.prod + (S.imp || 0);
+  const dom = S.imp && S.imp > (S.mix[top[0]] || 0) ? [`${Math.round(S.imp / avail * 100)} %`, 'imports', '#a8c3c6'] : [`${Math.round(S.mix[top[0]] / avail * 100)} %`, top[0], top[1]];
+  openPop(head + `<div class="tiles">
+    <span style="background:${dom[2]}"><b>${dom[0]}</b>${dom[1]}<br>Source dominante</span>
+    <span style="background:${S.intensity ? co2Colour(S.intensity) : '#eee'}"><b>${S.intensity ? mwf.format(S.intensity) : '?'}</b>gCO₂eq/kWh</span>
+    <span style="background:#f2c9bd"><b>${p == null ? '?' : nf2.format(p)}</b>€/MWh</span>
+    <span style="background:#eef3ea"><b>${S.low} %</b>Bas carbone</span><span style="background:#eaf3f2"><b>${S.ren} %</b>Renouvelable</span></div>`, x, y);
+}
+let hoverName = null, hoverQueued = false;
+addEventListener('pointermove', e => {
+  if (!document.body.classList.contains('dash') || !D.last || hoverQueued) return;
+  hoverQueued = true;
+  requestAnimationFrame(() => {
+    hoverQueued = false;
+    if (e.target.closest('#dash, #timeline, #pop, #legend')) return;
+    ndc.set(e.clientX / innerWidth * 2 - 1, 1 - e.clientY / innerHeight * 2); ray.setFromCamera(ndc, camera);
+    const hit = ray.intersectObjects([land, ...neighbourMeshes])[0], name = hit ? (hit.object === land ? 'Belgique' : hit.object.userData.name) : null;
+    if (!name) { if (hoverName) popEl.hidden = true; hoverName = null; return; }
+    hoverName = name; countryPop(name, e.clientX + 16, e.clientY + 16);
+  });
+});
+loadDash().catch(() => { dash.querySelector('.d-when').textContent = 'Les données d\'Elia ne sont pas disponibles pour le moment.'; });
+setInterval(() => loadDash().catch(() => {}), 15 * 60 * 1000);
+
+// voltage ladder beside the section: which step of 380 kV → 230 V we are on
+const VOLTS = [['380 kV', '#1f4fd8'], ['150 kV', '#d9822b'], ['15 kV', '#2e9b5f'], ['230 V', '#6b7a1a']];
+ladder.insertAdjacentHTML('beforeend', VOLTS.map(([t, c]) => `<span style="--c:${c}">${t}</span>`).join(''));
+let ladderIdx = -1;
+function ladderAt(i) {
+  i = +(i ?? 0);
+  if (i === ladderIdx) return;
+  ladderIdx = i;
+  const rows = [...ladder.querySelectorAll('span:not(.mark)')];
+  rows.forEach((r, k) => r.classList.toggle('on', k === i));
+  ladder.querySelector('.mark').style.top = `${rows[i].offsetTop + rows[i].offsetHeight / 2 - 4}px`;
+}
+
+// ── Loop ────────────────────────────────────────────────────
+const mouse = { x: 0, y: 0 }, par = { x: 0, y: 0 };
+addEventListener('pointermove', e => { mouse.x = e.clientX / innerWidth * 2 - 1; mouse.y = e.clientY / innerHeight * 2 - 1; });
+
+function resize() {
+  renderer.setSize(innerWidth, innerHeight);
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+}
+addEventListener('resize', resize); resize();
+
+const main = document.querySelector('main'), fig = document.getElementById('fig');
+const steps = [...document.querySelectorAll('.step')];
+const figs = steps.map(e => e.dataset.fig || ''), first = steps.findIndex(e => e.dataset.stop), last = steps.length - 1;
+const sB = steps.findIndex(e => e.dataset.cam), stops = steps.map(e => e.dataset.cam?.split(',').map(Number)); // map journey first, then the section
+const fade = document.getElementById('fade'), bIdx = steps.findIndex(e => e.dataset.net === '3'), nIdx = steps.findIndex(e => e.dataset.net === '2'); // borders beat, nationales beat
+let hold = 0, shown = null;
+// the camera never rushes: it eases toward where it should be, capped to a slow cruising speed (units/s),
+// and turns slowly; on a scene change (behind the fade) it just jumps
+const want = new THREE.Vector3();
+function glide(scene, maxSpeed) {
+  if (shown !== scene || !motion) { camera.position.copy(want); camera.quaternion.copy(aim.quaternion); shown = scene; return; }
+  const d = camera.position.distanceTo(want), step = Math.min(d * (1 - Math.exp(-raw * 1.2)), maxSpeed * raw);
+  if (d > 1e-4) camera.position.lerp(want, step / d);
+  camera.quaternion.slerp(aim.quaternion, 1 - Math.exp(-raw * .7));
+}
+let raw = 0;
+const tint = new THREE.Color();
+const leader = document.getElementById('leader'), leaderLine = leader.querySelector('polyline'), leaderDot = leader.querySelector('circle');
+const aim = new THREE.PerspectiveCamera(); // where the camera wants to look; it turns there smoothly
+let sv = 0; // scroll position, eased so wheel notches don't jolt the camera
+const chainEl = document.getElementById('chain'), chainItems = [...chainEl.querySelectorAll('li')], chainWho = chainEl.querySelector('.who');
+const WHO = { 0: '', 1: 'Centrales belges et pays voisins. Le gaz naturel est importé à 100 %.', 2: 'Elia pour l’électricité, Fluxys pour le gaz : des monopoles régulés, au niveau fédéral.',
+  3: 'Les gestionnaires de réseau de distribution : Fluvius en Flandre, ORES et RESA en Wallonie, Sibelga à Bruxelles.', 4: 'Chez vous : l’installation, les appareils, le compteur.',
+  5: 'Des fournisseurs en concurrence, et un contrat fixe, variable ou dynamique.', 6: 'Énergie, réseau, taxes : trois parts sur une même facture.',
+  R: 'Sous le contrôle de la CREG au niveau fédéral, et de la CWaPE, BRUGEL et du VREG dans les Régions.' };
+let chainAt = null;
+function drawChain() {
+  const k = steps[Math.min(Math.max(Math.round(sv), 0), steps.length - 1)].dataset.chain ?? '0';
+  const op = sv > 1.4 ? '1' : '0'; if (chainEl.style.opacity !== op) chainEl.style.opacity = op;
+  if (k === chainAt) return;
+  chainAt = k;
+  const n = k === 'R' ? 6 : +k;
+  chainItems.forEach((li, i) => { li.classList.toggle('on', i + 1 === n && k !== 'R'); li.classList.toggle('done', i + 1 < n); });
+  chainEl.classList.toggle('reg', k === 'R');
+  chainEl.style.setProperty('--p', `${n ? (n - 1) / 5 * 88 : 0}%`);
+  chainWho.textContent = WHO[k] || '';
+}
+const vA = new THREE.Vector3(), vB = new THREE.Vector3(), vC = new THREE.Vector3(), vD = new THREE.Vector3(), look = new THREE.Vector3();
+const clock = new THREE.Clock();
+
+renderer.setAnimationLoop(() => {
+  raw = Math.min(clock.getDelta(), .05);
+  const dt = raw * motion, t = clock.elapsedTime * motion;
+  const target = scrollY / innerHeight; // 0 title · 1 take-off · then one stop per step
+  sv += (target - sv) * (motion ? Math.min(1, raw * .9) : 1);
+  const s = sv;
+  par.x += (mouse.x - par.x) * .03; par.y += (mouse.y - par.y) * .03;
+  main.style.opacity = 1 - ss(0, .6, s);
+  fade.style.opacity = ss(sB - .42, sB - .3, s) * (1 - ss(sB - .3, sB - .05, s));
+  const f = figs[Math.round(s)] ?? '';
+  if (fig.textContent !== f) fig.textContent = f;
+
+  // labels: the current installation type; the neighbourhood's own labels once we get there
+  const cur = steps[Math.min(Math.max(Math.round(s), first), last)], kind = cur.dataset.kind, lvl = +(cur.dataset.net || 0), hero = ss(.9, 1.7, s);
+  const border = ss(bIdx - .65, bIdx - .1, s) * (1 - ss(bIdx + .4, bIdx + .9, s)); // 0 → 1 while arriving at the borders beat
+  const dive = ss(nIdx + .1, sB - .55, s); // after the nationales: zoom down onto a 380 kV line, which the section then continues
+  for (const tg of mtags) tg.op = hero * (tg.kind === 'city' || tg.kind === 'grid' ? .7 : tg.kind === 'country' ? border * +(tg.el.firstChild.textContent !== '') : +(kind === 'all' || tg.kind === kind));
+  links.visible = border > .01;
+  for (const g of links.children) { g.children[0].material.opacity = .6 * border; g.children[1].material.opacity = border; g.children[1].material.transparent = true; }
+  if (links.visible) animateLinks(t);
+  document.body.classList.toggle('dash', border > .5);
+  land.material.color.setHex(0xe5eae9); if (D.last?.intensity) land.material.color.lerp(tint.set(co2Colour(D.last.intensity)).lerp(new THREE.Color(PAPER), .45), border); // Belgium takes its carbon tint
+  const ladOp = s >= sB - .3 ? '1' : '0'; if (ladder.style.opacity !== ladOp) ladder.style.opacity = ladOp;
+  ladderAt(steps[Math.min(Math.max(Math.round(s), sB), last)].dataset.volt);
+
+  // everything that moves on its own
+  const thin = Math.min(1, Math.max(.15, 1 - (camera.position.y - 6) / 70)); // seen from high up, atlas-like: far fewer charges
+  for (const c of chargeSets) {
+    const n = Math.floor(c.n * thin);
+    for (let i = 0; i < n; i++) {
+      c.hu[i] += 3 * dt / spans[c.hr[i]].len;
+      while (c.hu[i] > 1) { c.hu[i] -= 1; c.hr[i] = spans[c.hr[i]].next; }
+      const sp = spans[c.hr[i]];
+      cablePoint(sp, sp.phases[i % sp.phases.length], c.hu[i], v);
+      c.hp[i * 3] = v.x; c.hp[i * 3 + 1] = v.y; c.hp[i * 3 + 2] = v.z;
+    }
+    c.geo.setDrawRange(0, n); c.geo.attributes.position.needsUpdate = true;
+  }
+  for (let i = 0; i < Q; i++) {
+    qu[i] = (qu[i] + 14 * dt / lens[qr[i]]) % 1;
+    routes[qr[i]].getPointAt(qu[i], v);
+    qCol.setHex(VCOL[voltAt(qr[i], qu[i])]); qc[i * 3] = qCol.r; qc[i * 3 + 1] = qCol.g; qc[i * 3 + 2] = qCol.b;
+    qp[i * 3] = v.x; qp[i * 3 + 1] = v.y; qp[i * 3 + 2] = v.z;
+  }
+  routeGeo.attributes.position.needsUpdate = routeGeo.attributes.color.needsUpdate = true;
+  for (const r of mrot) r.rotation.z -= dt * 2.5;
+  for (const r of rotors) r.rotation.z -= dt * 2.5;
+  waves.forEach((l, k) => {
+    const a = l.geometry.attributes.position;
+    for (let j = 0; j < 12; j++) a.setXYZ(j, 159 + k + .3 * Math.sin(j * .9 - t * 5 + k), 5 + j * .4, 0);
+    a.needsUpdate = true;
+  });
+  rayLines.scale.setScalar(1 + .12 * Math.sin(t * 3));
+  animateWorks(t);
+  drawChain();
+  animateGauge(performance.now(), kind);
+  kwh += dt * .4;
+  tagMeter.el.firstChild.textContent = `compteur : ${kwh.toLocaleString('fr-BE', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kWh`;
+
+  if (s >= sB - .3) {
+    // section view: glide between camera stops, subject kept right of the text card
+    const i0 = Math.min(Math.max(Math.floor(s), sB), last), i1 = Math.min(i0 + 1, last);
+    const u = ss(.2, .8, s - i0), [x, y, d] = stops[i0].map((a, k) => a + (stops[i1][k] - a) * u), off = d * .35;
+    B.fog.near = d + 40; B.fog.far = d * 3 + 200;
+    want.set(x - off + par.x * d * .05, y + d * .25 - par.y * d * .03, d);
+    aim.position.copy(want); aim.lookAt(x - off, y, 0);
+    glide(B, 25);
+    hold = 1 - ss(.15, .35, Math.abs(s - Math.round(s)));
+    return finish(B);
+  }
+  {
+    // title: low flight beside the cables along the tour loop
+    const u = (t * 4 / tourLen) % 1;
+    tour.getPointAt(u, vA); tour.getPointAt((u + 10 / tourLen) % 1, vB);
+    const hl = Math.hypot(vB.x - vA.x, vB.z - vA.z), rx = -(vB.z - vA.z) / hl, rz = (vB.x - vA.x) / hl;
+    vA.add(V3(rx * 1.05, 1.9, rz * 1.05)); vB.add(V3(rx * 1.05, 0, rz * 1.05)).setY(1.9); // riding beside the cables, among the charges
+    // journey: hold at a stop while its card is read, then travel the leg to the next one, eyes forward
+    const j0 = Math.min(Math.max(Math.floor(s), first), sB - 1), j1 = Math.min(j0 + 1, sB - 1), p = j1 === j0 ? 0 : ss(.15, .85, s - j0);
+    const a = stepStops[j0], b = stepStops[j1], leg = legs[j1];
+    if (p > 0 && leg) {
+      leg.getPointAt(p, vC);
+      vD.lerpVectors(a.focus, b.focus, ss(.05, .7, p)); // eyes on the destination, never on the road's twists
+    } else { vC.copy(a.view); vD.copy(a.focus); }
+    const rise = ss(.2, 1.7, s); // from the title flight into the journey
+    want.lerpVectors(vA, vC, rise).lerp(diveView, dive);
+    aim.position.copy(want);
+    aim.lookAt(look.lerpVectors(vB, vD, rise).lerp(diveLook, dive));
+    // look around with the mouse; turn a little left so the subject sits right of the text card
+    aim.rotateY(-par.x * .25 + .22 * rise * (1 - border) * (1 - dive)); aim.rotateX(-par.y * .15); // at the borders beat the map stays centred between panel and note
+    glide(M, 10 + 70 * dive); // the dive is a single sweeping descent
+    // travelling: open view; stopped at an installation: the background fades into the paper
+    const h = camera.position.y, fd = camera.position.distanceTo(p < .5 ? a.focus : b.focus);
+    hold = Math.max(1 - ss(0, .25, p), ss(.75, 1, p)) * rise;
+    const fh = kind === 'net' || dive > 0 ? 0 : hold; // the grid view keeps the whole country in sight
+    M.fog.near = 3 + h * 1.2 + (fd * .8 - 3 - h * 1.2) * fh; // what's far stays in the paper until we get close
+    M.fog.far = 40 + h * 4 + (fd * 2.2 - 40 - h * 4) * fh;
+  }
+  // high-voltage lines show while travelling; stopped at an installation they step aside (the grid steps keep them)
+  const hvOp = (kind === 'net' || kind === 'all' || dive > 0 ? 1 : 1 - hold) * (1 - border); // the dive keeps its line in view // the lines fade out as the countries come in
+  const netAmt = kind === 'net' ? hold : 0; // seen from above, each voltage takes its colour
+  // 380 / 220 kV everywhere; the finer 150 / 70 kV mesh only joins in for the grid step
+  neighbours.visible = border > .01; for (const o of neighbours.children) o.material.opacity = border;
+  for (const o of hv.children) { o.material.opacity = o.userData.kv < 220 ? netAmt * ss(nIdx - .65, nIdx - .15, s) * (1 - dive) : hvOp; o.visible = o.material.opacity > .02; } // the finer mesh from the second beat on
+  hv.children.forEach((o, i) => o.userData.net && o.material.color.copy(hvBase[i]).lerp(tint.setHex(o.userData.net), netAmt));
+  hv.visible = hvOp > .02;
+  for (const g of tinted) {
+    const amt = g.kind === kind ? hold : 0;
+    if (Math.abs(amt - g.amt) < .01) continue;
+    g.amt = amt;
+    for (const [m, base] of g.mats) m.color.copy(base).lerp(tint.setHex(KCOLOR[g.kind]), amt);
+  }
+  finish(M);
+});
+
+function finish(scene) {
+  renderer.render(scene, camera);
+  // leader from the note being read to its subject, once the camera has settled
+  const here = Math.round(sv), note = steps[here]?.querySelector('p'), focus = stepStops[here]?.focus;
+  let show = 0;
+  if (note && focus && (scene === B) === (here >= sB)) {
+    const r = note.getBoundingClientRect(); v.copy(focus).project(camera);
+    const x2 = (v.x + 1) / 2 * innerWidth, y2 = (1 - v.y) / 2 * innerHeight, y1 = r.top + r.height / 2;
+    show = hold * (1 - Math.min(1, Math.abs(y1 - innerHeight / 2) / (innerHeight * .25))) * +(v.z < 1 && x2 > r.right + 40);
+    leaderLine.setAttribute('points', `${r.right},${y1} ${r.right + 24},${y1} ${x2},${y2}`);
+    leaderDot.setAttribute('cx', x2); leaderDot.setAttribute('cy', y2);
+  }
+  leader.style.opacity = show.toFixed(2);
+  drawTags(scene);
+}
+</script>
+</body>
+</html>
