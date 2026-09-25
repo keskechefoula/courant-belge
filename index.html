@@ -144,18 +144,6 @@
   #ladder span:not(.mark)::before { content: ''; width: 22px; height: 3px; background: var(--c); }
   #ladder span.on { color: var(--encre); }
   #ladder .mark { position: absolute; left: -14px; width: 8px; height: 8px; border-radius: 50%; background: var(--encre); transition: top .8s cubic-bezier(.4,0,.2,1); }
-  #chain { position: fixed; top: 30px; left: 50%; translate: -50% 0; z-index: 5; width: min(560px, calc(100% - 120px)); pointer-events: none; opacity: 0; transition: opacity .8s;
-    font: 400 .78rem/1.2 var(--ui); text-align: center; text-shadow: 0 0 .3em var(--calque), 0 0 .7em var(--calque); }
-  #chain ol { position: relative; display: flex; justify-content: space-between; margin: 0; padding: 0; list-style: none; }
-  #chain ol::before, #chain ol::after { content: ''; position: absolute; left: 6%; right: 6%; top: 5px; height: 1.5px; background: rgba(210,53,43,.25); }
-  #chain ol::after { right: auto; width: var(--p, 0%); background: #d2352b; transition: width .9s cubic-bezier(.4,0,.2,1); } /* the thread fills up as we go */
-  #chain li { position: relative; flex: 1; padding-top: 16px; color: var(--cote); transition: color .5s; }
-  #chain li::before { content: ''; position: absolute; top: 0; left: 50%; width: 9px; height: 9px; margin-left: -5.5px; border-radius: 50%; border: 1.5px solid #d2352b; background: var(--calque); transition: background .5s, transform .5s; }
-  #chain li.done::before { background: rgba(210,53,43,.35); }
-  #chain li.on { color: var(--encre); } #chain li.on::before { background: #d2352b; transform: scale(1.35); }
-  #chain.reg li::before { background: #d2352b; } #chain.reg li { color: var(--encre); }
-  #chain .who { margin-top: 8px; min-height: 2.6em; font: 400 .8rem/1.3 var(--prose); color: #2b3540; transition: opacity .4s; }
-  @media (max-width: 640px) { #chain li { font-size: 0; } #chain .who { font-size: .72rem; } }
   .bill { display: flex; height: 22px; margin-top: .9em; font: 400 .72rem/22px var(--ui); color: #fff; text-shadow: none; }
   .bill i { width: var(--w); background: var(--c); font-style: normal; text-align: center; overflow: hidden; }
   #leader { position: fixed; inset: 0; z-index: 3; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
@@ -181,7 +169,7 @@
 <article>
   <div class="step"></div>
   <div class="step"></div>
-  <section class="step" data-chain="0" data-stop="start" data-kind="all"><p><b>Le fil rouge</b>Entre une centrale et votre prise, l’électricité passe de main en main. En Belgique, le marché de l’énergie est <em>libéralisé</em> : produire, transporter, distribuer et vendre l’électricité sont des métiers séparés, confiés à des acteurs différents, sous le contrôle de régulateurs fédéraux et régionaux. Suivons-la, maillon par maillon.</p></section>
+  <section class="step" data-chain="0" data-stop="start" data-kind="all"><p>Entre une centrale et votre prise, l’électricité passe de main en main. En Belgique, le marché de l’énergie est <em>libéralisé</em> : produire, transporter, distribuer et vendre l’électricité sont des métiers séparés, confiés à des acteurs différents, sous le contrôle de régulateurs fédéraux et régionaux.</p></section>
   <section class="step" data-chain="1" data-stop="nuc" data-kind="nuc" data-fig="Centrales nucléaires de Doel et de Tihange."><p><b>Le nucléaire</b>Pendant des décennies, près de la moitié de notre électricité est venue de deux sites : Doel, près d'Anvers, et Tihange, près de Huy. Sept réacteurs. Le principe tient en une phrase : la chaleur de l'uranium fait bouillir de l'eau, la vapeur fait tourner une turbine, la turbine fait tourner un alternateur. Aujourd'hui, il n'en tourne plus que <em>deux</em>, prolongés jusqu'en 2035.</p></section>
   <section class="step" data-chain="1" data-stop="gas" data-kind="gas" data-fig="Principales centrales au gaz."><p><b>Le gaz</b>Quand la production éolienne et solaire baisse ou que la demande augmente, les <em>centrales au gaz</em> peuvent contribuer à équilibrer le réseau. Dans une centrale à cycle combiné, la combustion du gaz entraîne une première turbine. La chaleur des gaz d’échappement sert ensuite à produire de la vapeur, qui fait tourner une seconde turbine.<br><br>Ces centrales sont pilotables, mais leur vitesse de démarrage dépend de leur technologie. La Belgique ne produit plus d’électricité à partir du charbon depuis la fermeture de sa dernière grande centrale, en 2016.<br><br>Le gaz naturel, lui, est entièrement <em>importé</em> : par gazoducs, ou par navires méthaniers au terminal de Zeebruges. Son transport à travers le pays est assuré par Fluxys.</p></section>
   <section class="step" data-chain="1" data-stop="wind" data-kind="wind" data-fig="Zone éolienne en mer du Nord et éoliennes terrestres."><p><b>Le vent</b>À plus de 20 kilomètres des côtes, des éoliennes tournent en <em>mer du Nord</em>. Le vent fait tourner leurs pales, qui entraînent un générateur. Quand il souffle fort, la puissance cumulée des éoliennes en mer peut rivaliser avec celle de deux réacteurs nucléaires. À terre, d’autres éoliennes se dressent le long des autoroutes, dans les ports et dans les champs. Quand le vent tombe, leur production diminue.</p></section>
@@ -207,16 +195,12 @@
   <section class="step" data-chain="4" data-cam="185,8,18" data-kind="home" data-volt="3" data-fig="Lampe à LED."><p><b>La lumière</b>Avant, les ampoules éclairaient en chauffant un fil jusqu’à le rendre lumineux. Elles perdaient beaucoup d’énergie en chaleur. Les <em>LED</em>, elles, produisent de la lumière avec beaucoup moins d’électricité : une LED de 5 watts peut éclairer autant qu’une ancienne ampoule de 40 watts.</p></section>
   <section class="step" data-chain="4" data-cam="208,5,18" data-kind="home" data-volt="3" data-fig="Ventilateur : moteur électrique."><p><b>Le mouvement</b>Dans un ventilateur, un lave-linge ou un aspirateur, le courant fait tourner un <em>moteur</em>. À l’intérieur, des forces magnétiques mettent un axe en mouvement. C’est l’éolienne du début à l’envers : là-bas, le mouvement produit du courant ; ici, le courant produit du mouvement.</p></section>
   <section class="step" data-chain="4" data-cam="114,5,13" data-kind="home" data-volt="3" data-fig="Compteur : l'énergie consommée s'additionne."><p><b>Le kilowattheure</b>Chaleur, lumière, mouvement : le compteur, lui, ne fait pas la différence. Il additionne tout, chaque watt, chaque seconde. Un ménage belge consomme en moyenne environ <em>3 500 kilowattheures</em> par an. Un peu moins de dix par jour.</p></section>
-  <section class="step" data-chain="5" data-cam="114,5,18" data-kind="home" data-volt="3" data-fig="Le compteur appartient au réseau ; le contrat, au fournisseur."><p><b>Le fournisseur</b>Le compteur appartient au réseau, mais le kilowattheure, vous l’achetez à un <em>fournisseur</em>. Engie, Luminus, TotalEnergies, Eneco, Mega et d’autres se font concurrence : c’est vous qui choisissez. Le contrat peut être à prix fixe, variable, ou dynamique, suivant le prix du marché heure par heure. Changer de fournisseur ne change rien aux câbles : c’est le même réseau, le même compteur.</p></section>
+  <section class="step" data-chain="6" data-cam="114,5,18" data-kind="home" data-volt="3" data-fig="Le compteur appartient au réseau ; le contrat, au fournisseur."><p><b>Le fournisseur</b>Le compteur appartient au réseau, mais le kilowattheure, vous l’achetez à un <em>fournisseur</em>. Engie, Luminus, TotalEnergies, Eneco, Mega et d’autres se font concurrence : c’est vous qui choisissez. Le contrat peut être à prix fixe, variable, ou dynamique, suivant le prix du marché heure par heure. Changer de fournisseur ne change rien aux câbles : c’est le même réseau, le même compteur.</p></section>
   <section class="step" data-chain="R" data-cam="155,-20,330" data-kind="home" data-volt="3" data-fig="Régulateurs : CREG au niveau fédéral ; CWaPE, BRUGEL et VREG dans les Régions."><p><b>Les arbitres</b>Pour que chacun joue le jeu, des <em>régulateurs</em> veillent sur toute la chaîne. Au niveau fédéral, la CREG contrôle les tarifs du transport et surveille le marché. Dans les Régions, la CWaPE en Wallonie, BRUGEL à Bruxelles et le VREG en Flandre encadrent la distribution et protègent les consommateurs.</p></section>
   <section class="step" data-chain="6" data-cam="155,-20,330" data-kind="home" data-volt="3" data-fig="Composition indicative d’une facture d’électricité résidentielle."><p><b>La facture</b>Votre facture rassemble tout ce parcours, en trois parts. Le <em>coût de l’énergie</em>, environ 40 à 50 % : le prix du kilowattheure fixé par votre fournisseur. Les <em>coûts de réseau</em>, environ 30 à 40 % : le transport par Elia et la distribution par votre GRD. Les <em>taxes et surcharges</em>, environ 15 à 20 % : TVA, accises fédérales, redevances régionales. Au total, de l’ordre de 30 à 40 centimes le kilowattheure. Votre bouilloire, trois minutes par jour : 36,5 kWh par an, environ 13 euros.
     <span class="bill"><i style="--w:45%;--c:#1f4fd8">Énergie</i><i style="--w:35%;--c:#2e9b5f">Réseau</i><i style="--w:20%;--c:#98a2a8">Taxes</i></span></p></section>
 </article>
 <div id="fig"></div>
-<nav id="chain" aria-label="La chaîne de l’électricité">
-  <ol><li data-c="1">Produire</li><li data-c="2">Transporter</li><li data-c="3">Distribuer</li><li data-c="4">Consommer</li><li data-c="5">Fournir</li><li data-c="6">Payer</li></ol>
-  <p class="who"></p>
-</nav>
 <aside id="dash" class="glass" aria-label="Électricité en Belgique">
   <div class="d-scroll">
   <div class="d-tabs" role="tablist">
@@ -305,7 +289,7 @@ const overlap = (a, b) => a.l < b.r && b.l < a.r && a.t < b.b && b.t < a.b;
 function drawTags(scene) {
   placed.length = 0;
   // things labels must not cover: the note being read, and the live panel / voltage ladder when shown
-  const blocks = [steps[Math.round(sv)]?.querySelector('p, h2'), ...['ladder', 'meter', 'chain'].map(id => document.getElementById(id)).filter(e => e.style.opacity === '1'), ...(document.body.classList.contains('dash') ? [dash, timeline, legend] : [])]
+  const blocks = [steps[Math.round(sv)]?.querySelector('p, h2'), ...['ladder', 'meter'].map(id => document.getElementById(id)).filter(e => e.style.opacity === '1'), ...(document.body.classList.contains('dash') ? [dash, timeline, legend] : [])]
     .filter(Boolean).map(e => { const r = e.getBoundingClientRect(); return { l: r.left - 8, t: r.top - 8, r: r.right + 8, b: r.bottom + 8 }; });
   for (const t of [...tags].sort((a, b) => b.el.classList.contains('big') - a.el.classList.contains('big'))) { // country names claim their place first
     t.o.getWorldPosition(v);
@@ -1166,23 +1150,6 @@ const tint = new THREE.Color();
 const leader = document.getElementById('leader'), leaderLine = leader.querySelector('polyline'), leaderDot = leader.querySelector('circle');
 const aim = new THREE.PerspectiveCamera(); // where the camera wants to look; it turns there smoothly
 let sv = 0; // scroll position, eased so wheel notches don't jolt the camera
-const chainEl = document.getElementById('chain'), chainItems = [...chainEl.querySelectorAll('li')], chainWho = chainEl.querySelector('.who');
-const WHO = { 0: '', 1: 'Centrales belges et pays voisins. Le gaz naturel est importé à 100 %.', 2: 'Elia pour l’électricité, Fluxys pour le gaz : des monopoles régulés, au niveau fédéral.',
-  3: 'Les gestionnaires de réseau de distribution : Fluvius en Flandre, ORES et RESA en Wallonie, Sibelga à Bruxelles.', 4: 'Chez vous : l’installation, les appareils, le compteur.',
-  5: 'Des fournisseurs en concurrence, et un contrat fixe, variable ou dynamique.', 6: 'Énergie, réseau, taxes : trois parts sur une même facture.',
-  R: 'Sous le contrôle de la CREG au niveau fédéral, et de la CWaPE, BRUGEL et du VREG dans les Régions.' };
-let chainAt = null;
-function drawChain() {
-  const k = steps[Math.min(Math.max(Math.round(sv), 0), steps.length - 1)].dataset.chain ?? '0';
-  const op = sv > 1.4 ? '1' : '0'; if (chainEl.style.opacity !== op) chainEl.style.opacity = op;
-  if (k === chainAt) return;
-  chainAt = k;
-  const n = k === 'R' ? 6 : +k;
-  chainItems.forEach((li, i) => { li.classList.toggle('on', i + 1 === n && k !== 'R'); li.classList.toggle('done', i + 1 < n); });
-  chainEl.classList.toggle('reg', k === 'R');
-  chainEl.style.setProperty('--p', `${n ? (n - 1) / 5 * 88 : 0}%`);
-  chainWho.textContent = WHO[k] || '';
-}
 const vA = new THREE.Vector3(), vB = new THREE.Vector3(), vC = new THREE.Vector3(), vD = new THREE.Vector3(), look = new THREE.Vector3();
 const clock = new THREE.Clock();
 
@@ -1240,7 +1207,6 @@ renderer.setAnimationLoop(() => {
   });
   rayLines.scale.setScalar(1 + .12 * Math.sin(t * 3));
   animateWorks(t);
-  drawChain();
   animateGauge(performance.now(), kind);
   kwh += dt * .4;
   tagMeter.el.firstChild.textContent = `compteur : ${kwh.toLocaleString('fr-BE', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kWh`;
